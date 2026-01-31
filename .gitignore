@@ -1,0 +1,4 @@
+.env
+auth/__pycache__/
+__pycache__/
+database/db.json

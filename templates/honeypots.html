@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Honeypots - Management</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { margin-bottom: 20px; color: #333; }
+        .nav { margin-bottom: 30px; }
+        .nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+        .nav a:hover { text-decoration: underline; }
+        .message { padding: 10px; margin-bottom: 20px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .create-form { background: #f8f9fa; padding: 20px; border-radius: 4px; margin-bottom: 30px; }
+        .create-form h2 { margin-bottom: 15px; font-size: 1.2em; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .protocols { display: flex; gap: 15px; flex-wrap: wrap; }
+        .protocols label { font-weight: normal; display: flex; align-items: center; gap: 5px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .honeypots-list { margin-top: 30px; }
+        .honeypot-card { background: #f8f9fa; padding: 20px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #dee2e6; }
+        .honeypot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .honeypot-header h3 { color: #333; }
+        .status { padding: 5px 10px; border-radius: 4px; font-size: 0.9em; }
+        .status.active { background: #d4edda; color: #155724; }
+        .status.inactive { background: #f8d7da; color: #721c24; }
+        .honeypot-info { margin-bottom: 15px; }
+        .honeypot-info p { margin-bottom: 5px; color: #666; }
+        .honeypot-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .edit-form { display: none; margin-top: 15px; padding: 15px; background: white; border-radius: 4px; }
+        .edit-form.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/honeypots">Honeypots</a>
+            <a href="/logs">Logs</a>
+            <a href="/settings">Settings</a>
+            <a href="/alerts/config">Alert Config</a>
+            <a href="/logout">Logout</a>
+        </div>
+
+        <h1>Honeypot Management</h1>
+
+        {% if error %}
+        <div class="message error">{{ error }}</div>
+        {% endif %}
+
+        {% if success %}
+        <div class="message success">{{ success }}</div>
+        {% endif %}
+
+        <div class="create-form">
+            <h2>Create New Honeypot</h2>
+            <form method="POST" action="/honeypots/create">
+                <div class="form-group">
+                    <label for="name">Honeypot Name:</label>
+                    <input type="text" id="name" name="name" required placeholder="e.g., FTP Server Honeypot">
+                </div>
+                <button type="submit">Create Honeypot</button>
+            </form>
+        </div>
+
+        <div class="honeypots-list">
+            <h2>Your Honeypots</h2>
+            {% if honeypots %}
+                {% for hp_id, hp in honeypots.items() %}
+                <div class="honeypot-card">
+                    <div class="honeypot-header">
+                        <h3>{{ hp.name }}</h3>
+                        <span class="status {% if hp.is_active %}active{% else %}inactive{% endif %}">
+                            {% if hp.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </div>
+                    <div class="honeypot-info">
+                        <p><strong>ID:</strong> {{ hp_id }}</p>
+                        <p><strong>Created:</strong> {{ hp.created_at[:19] }}</p>
+                        <p><strong>Last Active:</strong> {{ hp.last_active[:19] }}</p>
+                        <p><strong>Active Protocols:</strong> 
+                            {% if hp.active_protocols %}
+                                {{ hp.active_protocols|join(', ') }}
+                            {% else %}
+                                None
+                            {% endif %}
+                        </p>
+                        <p><strong>Total Logs:</strong> {{ hp.logs|length }}</p>
+                    </div>
+                    <div class="honeypot-actions">
+                        <button onclick="toggleEdit('{{ hp_id }}')">Edit</button>
+                        <a href="/logs?honeypot_id={{ hp_id }}"><button type="button" class="btn-success">View Logs</button></a>
+                        <form method="POST" action="/honeypots/{{ hp_id }}/delete" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this honeypot?');">
+                            <button type="submit" class="btn-danger">Delete</button>
+                        </form>
+                    </div>
+                    <div class="edit-form" id="edit-{{ hp_id }}">
+                        <h4>Edit Honeypot</h4>
+                        <form method="POST" action="/honeypots/{{ hp_id }}/update">
+                            <div class="form-group">
+                                <label for="name-{{ hp_id }}">Name:</label>
+                                <input type="text" id="name-{{ hp_id }}" name="name" value="{{ hp.name }}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Active Protocols:</label>
+                                {% if not hp.is_active %}
+                                <p style="color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px; margin-bottom: 10px; font-size: 0.9em;">
+                                    ⚠️ Honeypot must be online to adjust protocols
+                                </p>
+                                {% endif %}
+                                <div class="protocols">
+                                    <label><input type="checkbox" name="protocols" value="dhcp" {% if 'dhcp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> DHCP</label>
+                                    <label><input type="checkbox" name="protocols" value="dns" {% if 'dns' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> DNS</label>
+                                    <label><input type="checkbox" name="protocols" value="elastic" {% if 'elastic' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> Elastic</label>
+                                    <label><input type="checkbox" name="protocols" value="ftp" {% if 'ftp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> FTP</label>
+                                    <label><input type="checkbox" name="protocols" value="http_proxy" {% if 'http_proxy' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> HTTP Proxy</label>
+                                    <label><input type="checkbox" name="protocols" value="https_proxy" {% if 'https_proxy' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> HTTPS Proxy</label>
+                                    <label><input type="checkbox" name="protocols" value="http" {% if 'http' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> HTTP</label>
+                                    <label><input type="checkbox" name="protocols" value="https" {% if 'https' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> HTTPS</label>
+                                    <label><input type="checkbox" name="protocols" value="imap" {% if 'imap' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> IMAP</label>
+                                    <label><input type="checkbox" name="protocols" value="ipp" {% if 'ipp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> IPP</label>
+                                    <label><input type="checkbox" name="protocols" value="irc" {% if 'irc' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> IRC</label>
+                                    <label><input type="checkbox" name="protocols" value="ldap" {% if 'ldap' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> LDAP</label>
+                                    <label><input type="checkbox" name="protocols" value="memcache" {% if 'memcache' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> Memcache</label>
+                                    <label><input type="checkbox" name="protocols" value="mssql" {% if 'mssql' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> MSSQL</label>
+                                    <label><input type="checkbox" name="protocols" value="mysql" {% if 'mysql' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> MySQL</label>
+                                    <label><input type="checkbox" name="protocols" value="ntp" {% if 'ntp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> NTP</label>
+                                    <label><input type="checkbox" name="protocols" value="oracle" {% if 'oracle' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> Oracle</label>
+                                    <label><input type="checkbox" name="protocols" value="pjl" {% if 'pjl' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> PJL</label>
+                                    <label><input type="checkbox" name="protocols" value="pop3" {% if 'pop3' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> POP3</label>
+                                    <label><input type="checkbox" name="protocols" value="postgres" {% if 'postgres' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> Postgres</label>
+                                    <label><input type="checkbox" name="protocols" value="rdp" {% if 'rdp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> RDP</label>
+                                    <label><input type="checkbox" name="protocols" value="redis" {% if 'redis' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> Redis</label>
+                                    <label><input type="checkbox" name="protocols" value="sip" {% if 'sip' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> SIP</label>
+                                    <label><input type="checkbox" name="protocols" value="smb" {% if 'smb' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> SMB</label>
+                                    <label><input type="checkbox" name="protocols" value="smtp" {% if 'smtp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> SMTP</label>
+                                    <label><input type="checkbox" name="protocols" value="snmp" {% if 'snmp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> SNMP</label>
+                                    <label><input type="checkbox" name="protocols" value="socks5" {% if 'socks5' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> SOCKS5</label>
+                                    <label><input type="checkbox" name="protocols" value="ssh" {% if 'ssh' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> SSH</label>
+                                    <label><input type="checkbox" name="protocols" value="telnet" {% if 'telnet' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> Telnet</label>
+                                    <label><input type="checkbox" name="protocols" value="vnc" {% if 'vnc' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> VNC</label>
+                                </div>
+                            </div>
+                            <button type="submit">Save Changes</button>
+                            <button type="button" onclick="toggleEdit('{{ hp_id }}')">Cancel</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>No honeypots created yet. Create your first honeypot above!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function toggleEdit(honeypotId) {
+            const editForm = document.getElementById('edit-' + honeypotId);
+            editForm.classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

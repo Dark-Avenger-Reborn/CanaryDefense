@@ -1,0 +1,7 @@
+pyrebase4==4.9.0
+flask==3.1.2
+flask_limiter==4.1.1
+python-dotenv==1.2.1
+honeypots==0.36
+requests==2.31.0
+pyyaml==6.0

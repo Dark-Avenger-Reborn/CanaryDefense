@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs - Honeypot System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { margin-bottom: 20px; color: #333; }
+        .nav { margin-bottom: 30px; }
+        .nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+        .nav a:hover { text-decoration: underline; }
+        .message { padding: 10px; margin-bottom: 20px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .controls { display: flex; gap: 15px; margin-bottom: 30px; align-items: center; flex-wrap: wrap; }
+        .controls select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 250px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .logs-info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .logs-info h3 { margin-bottom: 10px; }
+        .logs-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .logs-table th, .logs-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        .logs-table th { background: #007bff; color: white; font-weight: bold; }
+        .logs-table tr:hover { background: #f8f9fa; }
+        .logs-table tr.success { background: #d4edda; }
+        .logs-table tr.failed { background: #f8d7da; }
+        .no-logs { text-align: center; padding: 40px; color: #666; }
+        .filter-bar { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .filter-bar input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px; }
+        .stats { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+        .stat-card { background: #f8f9fa; padding: 15px; border-radius: 4px; flex: 1; min-width: 150px; border: 1px solid #dee2e6; }
+        .stat-card h4 { color: #666; font-size: 0.9em; margin-bottom: 5px; }
+        .stat-card p { font-size: 1.5em; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/honeypots">Honeypots</a>
+            <a href="/logs">Logs</a>
+            <a href="/settings">Settings</a>
+            <a href="/alerts/config">Alert Config</a>
+            <a href="/logout">Logout</a>
+        </div>
+
+        <h1>Honeypot Logs</h1>
+
+        {% if error %}
+        <div class="message error">{{ error }}</div>
+        {% endif %}
+
+        {% if success %}
+        <div class="message success">{{ success }}</div>
+        {% endif %}
+
+        <div class="controls">
+            <label for="honeypot-select" style="font-weight: bold;">Select Honeypot:</label>
+            <select id="honeypot-select" onchange="window.location.href='/logs?honeypot_id=' + this.value">
+                <option value="">-- Choose a Honeypot --</option>
+                {% for hp_id, hp in honeypots.items() %}
+                <option value="{{ hp_id }}" {% if hp_id == selected_honeypot_id %}selected{% endif %}>
+                    {{ hp.name }} ({{ hp_id }})
+                </option>
+                {% endfor %}
+            </select>
+
+            {% if selected_honeypot_id %}
+            <form method="POST" action="/logs/{{ selected_honeypot_id }}/clear" style="display:inline;" onsubmit="return confirm('Are you sure you want to clear all logs?');">
+                <button type="submit" class="btn-danger">Clear All Logs</button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if selected_honeypot %}
+        <div class="logs-info">
+            <h3>{{ selected_honeypot.name }}</h3>
+            <p><strong>Status:</strong> {% if selected_honeypot.is_active %}Active{% else %}Inactive{% endif %}</p>
+            <p><strong>Active Protocols:</strong> 
+                {% if selected_honeypot.active_protocols %}
+                    {{ selected_honeypot.active_protocols|join(', ') }}
+                {% else %}
+                    None
+                {% endif %}
+            </p>
+        </div>
+
+        {% if logs %}
+        <div class="stats">
+            <div class="stat-card">
+                <h4>Total Logs</h4>
+                <p>{{ logs|length }}</p>
+            </div>
+            <div class="stat-card">
+                <h4>Successful Actions</h4>
+                <p>{{ logs|selectattr('status', 'equalto', 'success')|list|length }}</p>
+            </div>
+            <div class="stat-card">
+                <h4>Failed Actions</h4>
+                <p>{{ logs|selectattr('status', 'equalto', 'failed')|list|length }}</p>
+            </div>
+            <div class="stat-card">
+                <h4>Unique IPs</h4>
+                <p>{{ logs|map(attribute='src_ip')|unique|list|length }}</p>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <input type="text" id="search" placeholder="Search logs..." onkeyup="filterLogs()">
+            <select id="status-filter" onchange="filterLogs()">
+                <option value="">All Statuses</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+            </select>
+        </div>
+
+        <table class="logs-table" id="logs-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Source IP</th>
+                    <th>Source Port</th>
+                    <th>Dest IP</th>
+                    <th>Dest Port</th>
+                    <th>Server</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs|reverse %}
+                <tr class="{{ log.status }}" data-search="{{ log|tojson|lower }}">
+                    <td>{{ log.timestamp[:19] if log.timestamp else 'N/A' }}</td>
+                    <td>{{ log.action }}</td>
+                    <td>{{ log.src_ip }}</td>
+                    <td>{{ log.src_port }}</td>
+                    <td>{{ log.dest_ip }}</td>
+                    <td>{{ log.dest_port }}</td>
+                    <td>{{ log.server }}</td>
+                    <td>
+                        <span style="padding: 3px 8px; border-radius: 3px; {% if log.status == 'success' %}background: #28a745; color: white;{% else %}background: #dc3545; color: white;{% endif %}">
+                            {{ log.status|upper }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="no-logs">
+            <h3>No logs available for this honeypot</h3>
+            <p>Logs will appear here when the honeypot starts capturing activity.</p>
+        </div>
+        {% endif %}
+        {% elif selected_honeypot_id %}
+        <div class="no-logs">
+            <h3>Honeypot not found</h3>
+        </div>
+        {% else %}
+        <div class="no-logs">
+            <h3>Select a honeypot to view logs</h3>
+            <p>Choose a honeypot from the dropdown above to view its activity logs.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function filterLogs() {
+            const searchValue = document.getElementById('search').value.toLowerCase();
+            const statusFilter = document.getElementById('status-filter').value;
+            const table = document.getElementById('logs-table');
+            const rows = table.getElementsByTagName('tr');
+
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const searchData = row.getAttribute('data-search');
+                const statusClass = row.className;
+
+                let showRow = true;
+
+                // Apply search filter
+                if (searchValue && !searchData.includes(searchValue)) {
+                    showRow = false;
+                }
+
+                // Apply status filter
+                if (statusFilter && !statusClass.includes(statusFilter)) {
+                    showRow = false;
+                }
+
+                row.style.display = showRow ? '' : 'none';
+            }
+        }
+    </script>
+</body>
+</html>
