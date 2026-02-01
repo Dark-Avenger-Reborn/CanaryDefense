@@ -69,6 +69,25 @@ def download_install_script():
     except Exception as e:
         return f"Error: {str(e)}\n", 500
 
+@honeypot_bp.route('/honeypot_client.py', methods=['GET'])
+def download_honeypot_client_script():
+    """
+    Download the installation script
+    """
+    try:
+        script_path = os.path.join(
+            os.path.dirname(__file__),
+            'honeypot_client.py'
+        )
+        
+        with open(script_path, 'r') as f:
+            script_content = f.read()
+        
+        return Response(script_content, mimetype='text/x-python')
+    
+    except Exception as e:
+        return f"Error: {str(e)}\n", 500
+
 
 @honeypot_bp.route('/api/register', methods=['POST'])
 def register_honeypot():

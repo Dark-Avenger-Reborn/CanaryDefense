@@ -16,7 +16,6 @@ HONEYPOT_DIR="/opt/honeypot"
 HONEYPOT_USER="honeypot"
 SERVER_URL="${SERVER_URL:-}"
 HONEYPOT_ID="${HONEYPOT_ID:-}"
-API_KEY="${API_KEY:-}"
 
 echo -e "${GREEN}[*] Honeypot Client Installation Script${NC}"
 echo -e "${YELLOW}[*] Starting installation...${NC}"
@@ -38,10 +37,6 @@ while [[ $# -gt 0 ]]; do
             HONEYPOT_ID="$2"
             shift 2
             ;;
-        --api-key)
-            API_KEY="$2"
-            shift 2
-            ;;
         *)
             echo -e "${RED}[!] Unknown option: $1${NC}"
             exit 1
@@ -50,9 +45,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate required parameters
-if [ -z "$SERVER_URL" ] || [ -z "$HONEYPOT_ID" ] || [ -z "$API_KEY" ]; then
+if [ -z "$SERVER_URL" ] || [ -z "$HONEYPOT_ID" ]; then
     echo -e "${RED}[!] Missing required parameters${NC}"
-    echo "Usage: $0 --server-url <url> --honeypot-id <id> --api-key <key>"
+    echo "Usage: $0 --server-url <url> --honeypot-id <id>"
     exit 1
 fi
 
@@ -91,7 +86,6 @@ echo -e "${YELLOW}[*] Creating configuration file...${NC}"
 cat > "$HONEYPOT_DIR/config/honeypot.conf" <<EOF
 SERVER_URL=${SERVER_URL}
 HONEYPOT_ID=${HONEYPOT_ID}
-API_KEY=${API_KEY}
 LOG_DIR=${HONEYPOT_DIR}/logs
 CONFIG_DIR=${HONEYPOT_DIR}/config
 HOSTNAME=$(hostname)
@@ -145,9 +139,14 @@ CLIENTEOF
 chmod +x "$HONEYPOT_DIR/client.py"
 
 # Download honeypot_client module
-echo -e "${YELLOW}[*] Setting up honeypot client module...${NC}"
-# This would be downloaded from server or included
-# Placeholder for client module
+echo -e "${YELLOW}[*] Downloading honeypot client module...${NC}"
+curl -f -o "$HONEYPOT_DIR/honeypot_client.py" "${SERVER_URL}/honeypot/honeypot_client.py" || {
+    echo -e "${RED}[!] Failed to download honeypot_client.py${NC}"
+    exit 1
+}
+chown "$HONEYPOT_USER:$HONEYPOT_USER" "$HONEYPOT_DIR/honeypot_client.py"
+chmod 644 "$HONEYPOT_DIR/honeypot_client.py"
+echo -e "${GREEN}[+] Honeypot client module downloaded${NC}"
 
 # Enable and start service
 echo -e "${YELLOW}[*] Enabling honeypot service...${NC}"
