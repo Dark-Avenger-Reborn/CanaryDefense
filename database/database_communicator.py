@@ -178,7 +178,7 @@ class DatabaseCommunicator:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def create_honeypot(self, uid, name, honeypot_id=None, protocols=None):
+    def create_honeypot(self, uid, name, honeypot_id=None, protocols=None, extra_data=None):
         """
         Create a new honeypot for a user.
         
@@ -187,6 +187,7 @@ class DatabaseCommunicator:
             honeypot_id (str): Unique honeypot identifier
             name (str): Honeypot name
             protocols (list): List of protocols to enable
+            extra_data (dict): Additional honeypot fields (optional)
             
         Returns:
             dict: Success status
@@ -212,6 +213,9 @@ class DatabaseCommunicator:
                 "is_active": False,
                 "logs": []
             }
+
+            if extra_data:
+                honeypot_data.update(extra_data)
             
             db[uid]["honeypots"][honeypot_id] = honeypot_data
             self._save_db(db)

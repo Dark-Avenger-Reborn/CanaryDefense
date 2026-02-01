@@ -99,6 +99,7 @@
                 <div class="honeypot-mini">
                     <h3>{{ hp.name }} <span class="status-badge {% if hp.is_active %}active{% else %}inactive{% endif %}">{% if hp.is_active %}Active{% else %}Inactive{% endif %}</span></h3>
                     <p><strong>ID:</strong> {{ hp_id }}</p>
+                    {% if hp.description %}<p><strong>Description:</strong> {{ hp.description }}</p>{% endif %}
                     <p><strong>Protocols:</strong> {{ hp.active_protocols|join(', ') if hp.active_protocols else 'None' }}</p>
                     <p><strong>Logs:</strong> {{ hp.logs|length }}</p>
                     <p><strong>Last Active:</strong> {{ hp.last_active[:19] if hp.last_active else 'N/A' }}</p>

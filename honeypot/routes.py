@@ -17,7 +17,6 @@ db = DatabaseCommunicator()
 def create_honeypot():
     """
     Create a new honeypot instance
-    Returns installation URL and credentials
     """
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
@@ -26,51 +25,25 @@ def create_honeypot():
         uid = session.get('uid')
         data = request.get_json()
         
-        honeypot_name = data.get('name', 'Honeypot Instance')
-        honeypot_type = data.get('type', 'default')
+        name = data.get('name', 'Honeypot Instance')
         description = data.get('description', '')
         
-        # Generate unique honeypot ID
         honeypot_id = str(uuid.uuid4())[:12]
-        
-        # Generate API key
-        api_key = str(uuid.uuid4())
-        
-        # Create honeypot entry in database
-        honeypot_data = {
-            'id': honeypot_id,
-            'name': honeypot_name,
-            'type': honeypot_type,
-            'description': description,
-            'api_key': api_key,
-            'created_at': datetime.now().isoformat(),
-            'is_active': False,
-            'logs': [],
-            'active_protocols': [],
-            'last_seen': None,
-            'events_count': 0
-        }
-        
-        result = db.create_honeypot(uid, honeypot_id, honeypot_data)
+        result = db.create_honeypot(uid, name, honeypot_id)
         
         if not result['success']:
-            return jsonify({'error': 'Failed to create honeypot'}), 400
+            return jsonify({'error': result.get('error', 'Failed to create honeypot')}), 400
         
-        # Get the domain from request
-        domain = request.host.split(':')[0]
-        server_url = f"{'https' if request.is_secure else 'http'}://{domain}"
-        
-        # Generate installation URL and script
-        install_url = f"{server_url}/honeypot/install.sh?id={honeypot_id}&key={api_key}"
-        install_command = f"wget {server_url}/honeypot/install.sh -O /tmp/install.sh && bash /tmp/install.sh --server-url {server_url} --honeypot-id {honeypot_id} --api-key {api_key}"
+        # Update with description
+        db_data = db._load_db()
+        db_data[uid]['honeypots'][honeypot_id]['description'] = description
+        db._save_db(db_data)
         
         return jsonify({
             'success': True,
             'honeypot_id': honeypot_id,
-            'api_key': api_key,
-            'install_url': install_url,
-            'install_command': install_command,
-            'server_url': server_url
+            'name': name,
+            'description': description
         }), 201
     
     except Exception as e:
@@ -81,18 +54,8 @@ def create_honeypot():
 def download_install_script():
     """
     Download the installation script
-    The script can be used with: wget <url> | bash
     """
     try:
-        honeypot_id = request.args.get('id')
-        api_key = request.args.get('key')
-        
-        if not honeypot_id or not api_key:
-            return "Error: Missing required parameters\n", 400
-        
-        # Verify the honeypot and API key exist
-        # You might want to validate this against your database
-        
         script_path = os.path.join(
             os.path.dirname(__file__),
             'install.sh'
@@ -101,7 +64,6 @@ def download_install_script():
         with open(script_path, 'r') as f:
             script_content = f.read()
         
-        # The script will use the parameters passed in the command line
         return Response(script_content, mimetype='text/x-shellscript')
     
     except Exception as e:
@@ -112,37 +74,12 @@ def download_install_script():
 def register_honeypot():
     """
     Register a honeypot client with the server
-    Authentication: Bearer token in Authorization header
     """
     try:
-        # Get headers
-        auth_header = request.headers.get('Authorization', '')
-        honeypot_id = request.headers.get('X-Honeypot-ID', '')
-        
-        if not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Invalid authorization header'}), 401
-        
-        api_key = auth_header.replace('Bearer ', '')
-        data = request.get_json()
-        
-        # Verify the API key and honeypot ID
-        # This should be validated against your database
-        
-        # Mark honeypot as active
-        update_data = {
-            'is_active': True,
-            'last_seen': datetime.now().isoformat(),
-            'hostname': data.get('hostname'),
-            'platform': data.get('platform')
-        }
-        
-        # You would update this in the database
-        # For now, we'll just return success
-        
+        # TODO: Implement honeypot registration
         return jsonify({
             'success': True,
-            'message': 'Honeypot registered successfully',
-            'honeypot_id': honeypot_id
+            'message': 'Honeypot registered successfully'
         }), 200
     
     except Exception as e:
@@ -153,20 +90,9 @@ def register_honeypot():
 def honeypot_heartbeat():
     """
     Receive heartbeat from honeypot client
-    Indicates the honeypot is still alive
     """
     try:
-        auth_header = request.headers.get('Authorization', '')
-        honeypot_id = request.headers.get('X-Honeypot-ID', '')
-        
-        if not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Invalid authorization header'}), 401
-        
-        data = request.get_json()
-        
-        # Update last_seen in database
-        # This indicates the honeypot is online
-        
+        # TODO: Implement heartbeat handling
         return jsonify({
             'success': True,
             'timestamp': datetime.now().isoformat()
@@ -182,33 +108,7 @@ def receive_honeypot_log():
     Receive attack logs from honeypot client
     """
     try:
-        auth_header = request.headers.get('Authorization', '')
-        honeypot_id = request.headers.get('X-Honeypot-ID', '')
-        
-        if not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Invalid authorization header'}), 401
-        
-        api_key = auth_header.replace('Bearer ', '')
-        data = request.get_json()
-        
-        log_entry = data.get('log', {})
-        
-        # Parse and store the log
-        formatted_log = {
-            'timestamp': log_entry.get('timestamp', datetime.now().isoformat()),
-            'source_ip': log_entry.get('source_ip', 'unknown'),
-            'source_port': log_entry.get('source_port', 'unknown'),
-            'destination_port': log_entry.get('destination_port', 'unknown'),
-            'protocol': log_entry.get('protocol', 'unknown'),
-            'attack_type': log_entry.get('attack_type', 'unknown'),
-            'status': 'infiltration' if log_entry.get('payload') else 'scan',
-            'payload': log_entry.get('payload', ''),
-            'raw_data': log_entry.get('raw_data', {})
-        }
-        
-        # Add log to the honeypot in the database
-        # db.add_honeypot_log(uid, honeypot_id, formatted_log)
-        
+        # TODO: Implement log receiving and storage
         return jsonify({
             'success': True,
             'message': 'Log received successfully'
@@ -224,13 +124,7 @@ def get_honeypot_config():
     Get configuration updates for honeypot client
     """
     try:
-        auth_header = request.headers.get('Authorization', '')
-        honeypot_id = request.headers.get('X-Honeypot-ID', '')
-        
-        if not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Invalid authorization header'}), 401
-        
-        # Return configuration for the honeypot
+        # TODO: Implement config retrieval
         config = {
             'start_honeypots': [],
             'stop_honeypots': [],
@@ -263,11 +157,9 @@ def list_honeypots():
                 honeypot_list.append({
                     'id': hp_id,
                     'name': hp_data.get('name', 'Unknown'),
-                    'type': hp_data.get('type', 'unknown'),
                     'is_active': hp_data.get('is_active', False),
                     'created_at': hp_data.get('created_at'),
-                    'last_seen': hp_data.get('last_seen'),
-                    'events_count': hp_data.get('events_count', 0),
+                    'last_active': hp_data.get('last_active'),
                     'description': hp_data.get('description', '')
                 })
             
