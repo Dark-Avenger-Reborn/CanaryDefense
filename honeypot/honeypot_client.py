@@ -12,19 +12,32 @@ import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
-from honeypots import run_honeypot
-import yaml
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('/var/log/honeypot/client.log'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
+
+try:
+    from honeypots import run_honeypot
+    HONEYPOTS_AVAILABLE = True
+except ImportError:
+    HONEYPOTS_AVAILABLE = False
+    logger.warning("honeypots library not available. Install with: pip install honeypots")
+
+def setup_logging(log_file: str = None):
+    """Setup logging configuration"""
+    if log_file:
+        handlers = [
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    else:
+        handlers = [logging.StreamHandler()]
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=handlers
+    )
 
 
 class HoneypotConfig:
@@ -38,14 +51,14 @@ class HoneypotConfig:
     def load_config(self):
         """Load configuration from file"""
         if not os.path.exists(self.config_file):
-            logger.error(f"Config file not found: {self.config_file}")
+            logger.warning(f"Config file not found: {self.config_file}, using defaults")
             return False
         
         try:
             with open(self.config_file, 'r') as f:
                 for line in f:
                     line = line.strip()
-                    if line and not line.startswith('#'):
+                    if line and not line.startswith('#') and '=' in line:
                         key, value = line.split('=', 1)
                         self.config[key.strip()] = value.strip()
             logger.info("Configuration loaded successfully")
@@ -69,13 +82,11 @@ class HoneypotConfig:
 class ServerCommunicator:
     """Handles communication with the server"""
     
-    def __init__(self, server_url: str, honeypot_id: str, api_key: str):
+    def __init__(self, server_url: str, honeypot_id: str):
         self.server_url = server_url.rstrip('/')
         self.honeypot_id = honeypot_id
-        self.api_key = api_key
         self.session = requests.Session()
         self.session.headers.update({
-            'Authorization': f'Bearer {api_key}',
             'X-Honeypot-ID': honeypot_id,
             'User-Agent': 'HoneypotClient/1.0'
         })
@@ -211,16 +222,24 @@ class HoneypotManager:
     def _run_honeypot_thread(self, hp_type: str, port: int, hp_id: str, name: str):
         """Run honeypot in a thread"""
         try:
+            if not HONEYPOTS_AVAILABLE:
+                logger.error(f"Cannot start honeypot {hp_id}: honeypots library not available")
+                with self.lock:
+                    if hp_id in self.running_honeypots:
+                        self.running_honeypots[hp_id]['status'] = 'error'
+                return
+            
             def capture_callback(data):
                 """Callback for honeypot events"""
                 self.on_honeypot_event(data, hp_id)
             
             # Configure honeypot parameters
+            log_dir = self.config.get('LOG_DIR', '/var/log/honeypot')
             honeypot_options = {
                 'type': hp_type,
                 'port': port,
                 'interface': '0.0.0.0',
-                'logs': '/opt/honeypot/logs',
+                'logs': log_dir,
             }
             
             # Run the honeypot (blocking call)
@@ -288,11 +307,13 @@ class HoneypotManager:
                     logger.warning(f"Honeypot {hp_id} not found")
                     return False
                 
-                self.running_honeypots[hp_id]['status'] = 'stopping'
+                honeypot_info = self.running_honeypots[hp_id]
+                honeypot_info['status'] = 'stopping'
             
             logger.info(f"Stopping honeypot {hp_id}")
             
-            # TODO: Implement graceful shutdown for honeypot thread
+            # Note: Since honeypot threads are daemon threads, they will stop when the main program exits
+            # For immediate stopping, the honeypots library would need to support graceful shutdown
             
             with self.lock:
                 del self.running_honeypots[hp_id]
@@ -311,8 +332,7 @@ class HoneypotClient:
         self.config = HoneypotConfig()
         self.communicator = ServerCommunicator(
             self.config.get_required('SERVER_URL'),
-            self.config.get_required('HONEYPOT_ID'),
-            self.config.get_required('API_KEY')
+            self.config.get_required('HONEYPOT_ID')
         )
         self.manager = HoneypotManager(self.config, self.communicator)
         self.running = False
@@ -322,14 +342,18 @@ class HoneypotClient:
         try:
             logger.info("Initializing honeypot client")
             
+            # Setup logging
+            log_file = self.config.get('LOG_FILE')
+            setup_logging(log_file)
+            
             # Create necessary directories
-            log_dir = self.config.get('LOG_DIR', '/opt/honeypot/logs')
+            log_dir = self.config.get('LOG_DIR', '/var/log/honeypot')
             Path(log_dir).mkdir(parents=True, exist_ok=True)
             
             # Register with server
             config_dict = {
-                'hostname': self.config.get('HOSTNAME', 'unknown'),
-                'platform': self.config.get('PLATFORM', 'unknown')
+                'hostname': self.config.get('HOSTNAME', os.uname().nodename),
+                'platform': self.config.get('PLATFORM', os.uname().sysname)
             }
             
             if not self.communicator.register(config_dict):

@@ -6,9 +6,11 @@ from flask import Blueprint, render_template, request, jsonify, session, send_fi
 from auth.routes import is_logged_in
 import os
 import uuid
+import logging
 from datetime import datetime
 from database.database_communicator import DatabaseCommunicator
 
+logger = logging.getLogger(__name__)
 honeypot_bp = Blueprint('honeypot', __name__, url_prefix='/honeypot')
 db = DatabaseCommunicator()
 
@@ -50,100 +52,113 @@ def create_honeypot():
         return jsonify({'error': str(e)}), 500
 
 
-@honeypot_bp.route('/install.sh', methods=['GET'])
-def download_install_script():
-    """
-    Download the installation script
-    """
+def _download_file(filename: str, mimetype: str):
+    """Helper function to download files from the honeypot directory"""
     try:
-        script_path = os.path.join(
-            os.path.dirname(__file__),
-            'install.sh'
-        )
+        script_path = os.path.join(os.path.dirname(__file__), filename)
+        
+        if not os.path.exists(script_path):
+            return jsonify({'error': f'File {filename} not found'}), 404
         
         with open(script_path, 'r') as f:
-            script_content = f.read()
+            content = f.read()
         
-        return Response(script_content, mimetype='text/x-shellscript')
-    
+        return Response(content, mimetype=mimetype)
     except Exception as e:
-        return f"Error: {str(e)}\n", 500
+        return jsonify({'error': str(e)}), 500
+
+
+@honeypot_bp.route('/install.sh', methods=['GET'])
+def download_install_script():
+    """Download the installation script"""
+    return _download_file('install.sh', 'text/x-shellscript')
+
 
 @honeypot_bp.route('/honeypot_client.py', methods=['GET'])
 def download_honeypot_client_script():
-    """
-    Download the installation script
-    """
-    try:
-        script_path = os.path.join(
-            os.path.dirname(__file__),
-            'honeypot_client.py'
-        )
-        
-        with open(script_path, 'r') as f:
-            script_content = f.read()
-        
-        return Response(script_content, mimetype='text/x-python')
-    
-    except Exception as e:
-        return f"Error: {str(e)}\n", 500
+    """Download the honeypot client Python script"""
+    return _download_file('honeypot_client.py', 'text/x-python')
 
 
 @honeypot_bp.route('/api/register', methods=['POST'])
 def register_honeypot():
-    """
-    Register a honeypot client with the server
-    """
+    """Register a honeypot client with the server"""
     try:
-        # TODO: Implement honeypot registration
+        data = request.get_json()
+        honeypot_id = data.get('honeypot_id')
+        
+        if not honeypot_id:
+            return jsonify({'error': 'honeypot_id is required'}), 400
+        
+        # Note: In production, validate honeypot ownership and store registration info
+        logger.info(f"Honeypot {honeypot_id} registered from {request.remote_addr}")
+        
         return jsonify({
             'success': True,
-            'message': 'Honeypot registered successfully'
+            'message': 'Honeypot registered successfully',
+            'honeypot_id': honeypot_id
         }), 200
     
     except Exception as e:
+        logger.error(f"Error registering honeypot: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @honeypot_bp.route('/api/heartbeat', methods=['POST'])
 def honeypot_heartbeat():
-    """
-    Receive heartbeat from honeypot client
-    """
+    """Receive heartbeat from honeypot client"""
     try:
-        # TODO: Implement heartbeat handling
-        return jsonify({
-            'success': True,
-            'timestamp': datetime.now().isoformat()
-        }), 204
+        data = request.get_json()
+        honeypot_id = data.get('honeypot_id')
+        
+        if not honeypot_id:
+            return jsonify({'error': 'honeypot_id is required'}), 400
+        
+        # Note: In production, update last_active timestamp in database
+        logger.debug(f"Heartbeat received from {honeypot_id}")
+        
+        return '', 204
     
     except Exception as e:
+        logger.error(f"Error processing heartbeat: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @honeypot_bp.route('/api/logs', methods=['POST'])
 def receive_honeypot_log():
-    """
-    Receive attack logs from honeypot client
-    """
+    """Receive attack logs from honeypot client"""
     try:
-        # TODO: Implement log receiving and storage
+        data = request.get_json()
+        honeypot_id = data.get('honeypot_id')
+        log_entry = data.get('log')
+        
+        if not honeypot_id or not log_entry:
+            return jsonify({'error': 'honeypot_id and log are required'}), 400
+        
+        # Note: In production, store logs in database
+        # For now, just log it
+        logger.info(f"Log received from {honeypot_id}: {log_entry.get('attack_type', 'unknown')} from {log_entry.get('source_ip', 'unknown')}")
+        
         return jsonify({
             'success': True,
             'message': 'Log received successfully'
         }), 201
     
     except Exception as e:
+        logger.error(f"Error receiving log: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @honeypot_bp.route('/api/config', methods=['GET'])
 def get_honeypot_config():
-    """
-    Get configuration updates for honeypot client
-    """
+    """Get configuration updates for honeypot client"""
     try:
-        # TODO: Implement config retrieval
+        honeypot_id = request.headers.get('X-Honeypot-ID')
+        
+        if not honeypot_id:
+            return jsonify({'error': 'X-Honeypot-ID header is required'}), 400
+        
+        # Note: In production, retrieve honeypot-specific configuration from database
         config = {
             'start_honeypots': [],
             'stop_honeypots': [],
@@ -153,6 +168,7 @@ def get_honeypot_config():
         return jsonify(config), 200
     
     except Exception as e:
+        logger.error(f"Error retrieving config: {e}")
         return jsonify({'error': str(e)}), 500
 
 
