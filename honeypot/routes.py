@@ -12,6 +12,7 @@ from database.database_communicator import DatabaseCommunicator
 
 logger = logging.getLogger(__name__)
 honeypot_bp = Blueprint('honeypot', __name__, url_prefix='/honeypot')
+honeypot_api_bp = Blueprint('honeypot_api', __name__, url_prefix='/api/honeypot')
 db = DatabaseCommunicator()
 
 
@@ -80,7 +81,7 @@ def download_honeypot_client_script():
     return _download_file('honeypot_client.py', 'text/x-python')
 
 
-@honeypot_bp.route('/api/register', methods=['POST'])
+@honeypot_api_bp.route('/register', methods=['POST'])
 def register_honeypot():
     """Register a honeypot client with the server"""
     try:
@@ -104,7 +105,7 @@ def register_honeypot():
         return jsonify({'error': str(e)}), 500
 
 
-@honeypot_bp.route('/api/heartbeat', methods=['POST'])
+@honeypot_api_bp.route('/heartbeat', methods=['POST'])
 def honeypot_heartbeat():
     """Receive heartbeat from honeypot client"""
     try:
@@ -124,7 +125,7 @@ def honeypot_heartbeat():
         return jsonify({'error': str(e)}), 500
 
 
-@honeypot_bp.route('/api/logs', methods=['POST'])
+@honeypot_api_bp.route('/logs', methods=['POST'])
 def receive_honeypot_log():
     """Receive attack logs from honeypot client"""
     try:
@@ -149,7 +150,7 @@ def receive_honeypot_log():
         return jsonify({'error': str(e)}), 500
 
 
-@honeypot_bp.route('/api/config', methods=['GET'])
+@honeypot_api_bp.route('/config', methods=['GET'])
 def get_honeypot_config():
     """Get configuration updates for honeypot client"""
     try:

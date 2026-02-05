@@ -3,7 +3,7 @@ from auth.routes import auth_bp, is_logged_in
 from auth.extensions import limiter
 from database.routes import database_bp
 from database.database_communicator import DatabaseCommunicator
-from honeypot.routes import honeypot_bp
+from honeypot.routes import honeypot_bp, honeypot_api_bp
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
@@ -11,6 +11,7 @@ limiter.init_app(app)
 app.register_blueprint(auth_bp)
 app.register_blueprint(database_bp)
 app.register_blueprint(honeypot_bp)
+app.register_blueprint(honeypot_api_bp)
 db = DatabaseCommunicator()
 
 
