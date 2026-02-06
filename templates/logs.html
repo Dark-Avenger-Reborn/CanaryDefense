@@ -175,6 +175,17 @@
             panel.classList.toggle('active');
         }
 
+        // Close confirmation panels when clicking outside
+        document.addEventListener('click', (event) => {
+            const confirmPanels = document.querySelectorAll('.confirm-panel.active');
+            confirmPanels.forEach(panel => {
+                const host = panel.closest('.confirm-host');
+                if (host && !host.contains(event.target)) {
+                    panel.classList.remove('active');
+                }
+            });
+        });
+
         function filterLogs() {
             const searchValue = document.getElementById('search').value.toLowerCase();
             const statusFilter = document.getElementById('status-filter').value;
