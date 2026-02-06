@@ -1,3 +1,58 @@
-<h1>Not much here for now</h1>
-<button onclick="location.href='/login'">Login Page</button>
-<button onclick="location.href='/create_account'">Create Account Page</button>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Honeypot Control</title>
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="page">
+	<div class="shell">
+		<div class="top-bar">
+			<div class="brand">
+				<div class="brand-mark" aria-hidden="true"></div>
+				<div>
+					<h1>Honeypot Control</h1>
+					<p>Threat telemetry, simplified response.</p>
+				</div>
+			</div>
+			<div class="nav">
+				<a class="nav-primary" href="/login">Login</a>
+				<a href="/create_account">Create account</a>
+			</div>
+		</div>
+
+		<div class="card hero fade-up">
+			<div>
+				<h1>See every scan, shape the response.</h1>
+				<p>Centralize honeypots, protocol coverage, and attacker fingerprints in a single, modern control plane.</p>
+				<div class="hero-actions">
+					<a class="btn" href="/login">Sign in</a>
+					<a class="btn btn-secondary" href="/create_account">Create account</a>
+					<a class="btn btn-ghost" href="/honeypots">Explore honeypots</a>
+				</div>
+			</div>
+			<div class="card-list">
+				<div class="card">
+					<div class="section-title">
+						<h2>Live Intel</h2>
+						<p>Track scans, infiltrations, and protocol usage with near real-time signals.</p>
+					</div>
+				</div>
+				<div class="card">
+					<div class="section-title">
+						<h2>Curated Views</h2>
+						<p>Segment noise with filters, honeypot scopes, and clean reporting.</p>
+					</div>
+				</div>
+				<div class="card">
+					<div class="section-title">
+						<h2>Fast Deploys</h2>
+						<p>Generate install commands and activate protocols without the friction.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

@@ -4,138 +4,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Honeypots - Management</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { margin-bottom: 20px; color: #333; }
-        .nav { margin-bottom: 30px; }
-        .nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
-        .nav a:hover { text-decoration: underline; }
-        .message { padding: 10px; margin-bottom: 20px; border-radius: 4px; }
-        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .create-form { background: #f8f9fa; padding: 20px; border-radius: 4px; margin-bottom: 30px; }
-        .create-form h2 { margin-bottom: 15px; font-size: 1.2em; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
-        .form-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-        .protocols { display: flex; gap: 15px; flex-wrap: wrap; }
-        .protocols label { font-weight: normal; display: flex; align-items: center; gap: 5px; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #0056b3; }
-        .btn-danger { background: #dc3545; }
-        .btn-danger:hover { background: #c82333; }
-        .btn-success { background: #28a745; }
-        .btn-success:hover { background: #218838; }
-        .honeypots-list { margin-top: 30px; }
-        .honeypot-card { background: #f8f9fa; padding: 20px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #dee2e6; }
-        .honeypot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .honeypot-header h3 { color: #333; }
-        .status { padding: 5px 10px; border-radius: 4px; font-size: 0.9em; }
-        .status.active { background: #d4edda; color: #155724; }
-        .status.inactive { background: #f8d7da; color: #721c24; }
-        .honeypot-info { margin-bottom: 15px; }
-        .honeypot-info p { margin-bottom: 5px; color: #666; }
-        .honeypot-actions { display: flex; gap: 10px; margin-top: 15px; }
-        .edit-form { display: none; margin-top: 15px; padding: 15px; background: white; border-radius: 4px; }
-        .edit-form.active { display: block; }
-        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none; align-items: center; justify-content: center; z-index: 1000; }
-        .modal-backdrop.active { display: flex; }
-        .modal { background: #fff; width: min(720px, 92vw); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 20px; }
-        .modal h3 { margin-bottom: 10px; }
-        .modal pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
-        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
-        .btn-secondary { background: #6c757d; }
-        .btn-secondary:hover { background: #5a6268; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
-<body>
-    <div class="container">
-        <div class="nav">
-            <a href="/">Dashboard</a>
-            <a href="/honeypots">Honeypots</a>
-            <a href="/logs">Logs</a>
-            <a href="/settings">Settings</a>
-            <a href="/alerts/config">Alert Config</a>
-            <a href="/logout">Logout</a>
+<body class="page">
+    <div class="shell">
+        <div class="top-bar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <div>
+                    <h1>Honeypots</h1>
+                    <p>Deploy, adjust, and inspect active decoys.</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/honeypots">Honeypots</a>
+                <a href="/logs">Logs</a>
+                <a href="/settings">Settings</a>
+                <a href="/alerts/config">Alert Config</a>
+                <a class="nav-primary" href="/logout">Logout</a>
+            </div>
         </div>
 
-        <h1>Honeypot Management</h1>
-
         {% if error %}
-        <div class="message error">{{ error }}</div>
+        <div class="notice error" style="margin-bottom: 16px;">{{ error }}</div>
         {% endif %}
 
         {% if success %}
-        <div class="message success">{{ success }}</div>
+        <div class="notice success" style="margin-bottom: 16px;">{{ success }}</div>
         {% endif %}
 
-        <div class="create-form">
-            <h2>Create New Honeypot</h2>
-            <form method="POST" action="/honeypot/create" id="create-honeypot-form">
-                <div class="form-group">
-                    <label for="name">Honeypot Name:</label>
+        <div class="card fade-up">
+            <div class="section-title">
+                <h2>Create new honeypot</h2>
+                <p>Launch a new node and generate the install command instantly.</p>
+            </div>
+            <div id="honeypot-create-notice" class="notice hidden" style="margin-bottom: 14px;"></div>
+            <form method="POST" action="/honeypot/create" id="create-honeypot-form" class="form-grid">
+                <div class="form-row">
+                    <label for="name"><strong>Honeypot name</strong></label>
                     <input type="text" id="name" name="name" required placeholder="e.g., FTP Server Honeypot">
                 </div>
-                <div class="form-group">
-                    <label for="description">Description:</label>
+                <div class="form-row">
+                    <label for="description"><strong>Description</strong></label>
                     <input type="text" id="description" name="description" placeholder="Optional description for this honeypot">
                 </div>
-                <button type="submit">Create Honeypot</button>
+                <div>
+                    <button type="submit" class="btn">Create honeypot</button>
+                </div>
             </form>
         </div>
 
-        <div class="honeypots-list">
-            <h2>Your Honeypots</h2>
-            {% if honeypots %}
+        <div class="section-title" style="margin-top: 28px;">
+            <h2>Your honeypots</h2>
+            <p>Review performance and adjust active protocols per node.</p>
+        </div>
+
+        {% if honeypots %}
+            <div class="card-list">
                 {% for hp_id, hp in honeypots.items() %}
                 <div class="honeypot-card">
                     <div class="honeypot-header">
-                        <h3>{{ hp.name }}</h3>
-                        <span class="status {% if hp.is_active %}active{% else %}inactive{% endif %}">
+                        <div>
+                            <h3>{{ hp.name }}</h3>
+                            <div class="meta-row">
+                                <span>ID: {{ hp_id }}</span>
+                                <span>Created: {{ hp.created_at[:19] }}</span>
+                            </div>
+                        </div>
+                        <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}">
                             {% if hp.is_active %}Active{% else %}Inactive{% endif %}
                         </span>
                     </div>
-                    <div class="honeypot-info">
-                        <p><strong>ID:</strong> {{ hp_id }}</p>
-                        {% if hp.description %}<p><strong>Description:</strong> {{ hp.description }}</p>{% endif %}
-                        <p><strong>Created:</strong> {{ hp.created_at[:19] }}</p>
-                        <p><strong>Last Active:</strong> {{ hp.last_active[:19] }}</p>
-                        <p><strong>Active Protocols:</strong> 
-                            {% if hp.active_protocols %}
-                                {{ hp.active_protocols|join(', ') }}
-                            {% else %}
-                                None
-                            {% endif %}
-                        </p>
-                        <p><strong>Total Logs:</strong> {{ hp.logs|length }}</p>
+                    <div class="meta-row">
+                        {% if hp.description %}<span>Description: {{ hp.description }}</span>{% endif %}
+                        <span>Last Active: {{ hp.last_active[:19] }}</span>
+                        <span>Protocols: {% if hp.active_protocols %}{{ hp.active_protocols|join(', ') }}{% else %}None{% endif %}</span>
+                        <span>Total Logs: {{ hp.logs|length }}</span>
                     </div>
                     <div class="honeypot-actions">
-                        <button onclick="toggleEdit('{{ hp_id }}')">Edit</button>
-                        <a href="/logs?honeypot_id={{ hp_id }}"><button type="button" class="btn-success">View Logs</button></a>
-                        <form method="POST" action="/honeypots/{{ hp_id }}/delete" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this honeypot?');">
-                            <button type="submit" class="btn-danger">Delete</button>
+                        <button class="btn" type="button" onclick="toggleEdit('{{ hp_id }}')">Edit</button>
+                        <a href="/logs?honeypot_id={{ hp_id }}"><button type="button" class="btn btn-success">View Logs</button></a>
+                        <form method="POST" action="/honeypots/{{ hp_id }}/delete" style="display:inline;">
+                            <div class="confirm-host">
+                                <button type="button" class="btn btn-danger" onclick="toggleConfirm('delete-{{ hp_id }}')">Delete</button>
+                                <div class="confirm-panel" id="delete-{{ hp_id }}">
+                                    <span>Delete this honeypot?</span>
+                                    <button type="submit" class="btn btn-danger">Confirm delete</button>
+                                    <button type="button" class="btn btn-ghost" onclick="toggleConfirm('delete-{{ hp_id }}')">Cancel</button>
+                                </div>
+                            </div>
                         </form>
                     </div>
                     <div class="edit-form" id="edit-{{ hp_id }}">
                         <h4>Edit Honeypot</h4>
-                        <form method="POST" action="/honeypots/{{ hp_id }}/update">
-                            <div class="form-group">
-                                <label for="name-{{ hp_id }}">Name:</label>
+                        <form method="POST" action="/honeypots/{{ hp_id }}/update" class="form-grid">
+                            <div class="form-row">
+                                <label for="name-{{ hp_id }}"><strong>Name</strong></label>
                                 <input type="text" id="name-{{ hp_id }}" name="name" value="{{ hp.name }}" required>
                             </div>
-                            <div class="form-group">
-                                <label for="description-{{ hp_id }}">Description:</label>
+                            <div class="form-row">
+                                <label for="description-{{ hp_id }}"><strong>Description</strong></label>
                                 <input type="text" id="description-{{ hp_id }}" name="description" value="{{ hp.description or '' }}">
                             </div>
-                            <div class="form-group">
-                                <label>Active Protocols:</label>
-                                {% if not hp.is_active %}
-                                <p style="color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px; margin-bottom: 10px; font-size: 0.9em;">
-                                    ⚠️ Honeypot must be online to adjust protocols
-                                </p>
-                                {% endif %}
+                            <div class="form-row">
+                                <label><strong>Active Protocols</strong></label>
                                 <div class="protocols">
                                     <label><input type="checkbox" name="protocols" value="dhcp" {% if 'dhcp' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> DHCP</label>
                                     <label><input type="checkbox" name="protocols" value="dns" {% if 'dns' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> DNS</label>
@@ -169,16 +142,23 @@
                                     <label><input type="checkbox" name="protocols" value="vnc" {% if 'vnc' in hp.active_protocols %}checked{% endif %} {% if not hp.is_active %}disabled{% endif %}> VNC</label>
                                 </div>
                             </div>
-                            <button type="submit">Save Changes</button>
-                            <button type="button" onclick="toggleEdit('{{ hp_id }}')">Cancel</button>
+                            <div class="honeypot-actions">
+                                <button type="submit" class="btn">Save changes</button>
+                                <button type="button" class="btn btn-ghost" onclick="toggleEdit('{{ hp_id }}')">Cancel</button>
+                            </div>
                         </form>
                     </div>
                 </div>
                 {% endfor %}
-            {% else %}
-                <p>No honeypots created yet. Create your first honeypot above!</p>
-            {% endif %}
-        </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="section-title">
+                    <h2>No honeypots yet</h2>
+                    <p>Create your first honeypot to start tracking activity.</p>
+                </div>
+            </div>
+        {% endif %}
     </div>
 
     <div class="modal-backdrop" id="install-modal">
@@ -187,8 +167,8 @@
             <p>Run this on the target host:</p>
             <pre id="install-command"></pre>
             <div class="modal-actions">
-                <button class="btn-secondary" type="button" onclick="closeInstallModal()">Close</button>
-                <button type="button" onclick="copyInstallCommand()">Copy</button>
+                <button class="btn btn-ghost" type="button" onclick="closeInstallModal()">Close</button>
+                <button type="button" class="btn" onclick="copyInstallCommand()">Copy</button>
             </div>
         </div>
     </div>
@@ -199,7 +179,16 @@
             editForm.classList.toggle('active');
         }
 
+        function toggleConfirm(panelId) {
+            const panel = document.getElementById(panelId);
+            if (!panel) {
+                return;
+            }
+            panel.classList.toggle('active');
+        }
+
         const createForm = document.getElementById('create-honeypot-form');
+        const createNotice = document.getElementById('honeypot-create-notice');
         const installModal = document.getElementById('install-modal');
         const installCommandEl = document.getElementById('install-command');
 
@@ -227,7 +216,7 @@
                     }, 1500);
                 }
             } catch (e) {
-                alert('Copy failed. Please select and copy manually.');
+                console.warn('Copy failed');
             }
         }
 
@@ -256,7 +245,11 @@
 
                 if (!response.ok || !payload.success) {
                     const errorMessage = payload.error || 'Failed to create honeypot.';
-                    alert(errorMessage);
+                    if (createNotice) {
+                        createNotice.textContent = errorMessage;
+                        createNotice.classList.remove('hidden', 'success');
+                        createNotice.classList.add('error');
+                    }
                     return;
                 }
 
@@ -264,7 +257,11 @@
                 const installCommand = `wget ${serverUrl}/honeypot/install.sh -O /tmp/install.sh && sudo bash /tmp/install.sh --server-url ${serverUrl} --honeypot-id ${payload.honeypot_id}`;
                 openInstallModal(installCommand);
             } catch (error) {
-                alert('Failed to create honeypot. Please try again.');
+                if (createNotice) {
+                    createNotice.textContent = 'Failed to create honeypot. Please try again.';
+                    createNotice.classList.remove('hidden', 'success');
+                    createNotice.classList.add('error');
+                }
             }
         });
     </script>

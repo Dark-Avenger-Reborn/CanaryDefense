@@ -1,34 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Create Account</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 50px; }
-        .form-container { max-width: 400px; margin: 0 auto; }
-        input { display: block; margin: 10px 0; padding: 8px; width: 100%; box-sizing: border-box; }
-        button { padding: 10px 20px; background-color: #28a745; color: white; border: none; cursor: pointer; width: 100%; }
-        button:hover { background-color: #218838; }
-        .error { color: red; margin: 10px 0; }
-        .link { margin-top: 20px; }
-        a { color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
-<body>
-    <div class="form-container">
-        <h1>Create Account</h1>
-        {% if error %}
-            <div class="error">{{ error }}</div>
-        {% endif %}
-        <form method="POST">
-            <input type="email" name="email" placeholder="Email" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <input type="password" name="confirm_password" placeholder="Confirm Password" required>
-            <button type="submit">Create Account</button>
-        </form>
-        <div class="link">
-            <p>Already have an account? <a href="{{ url_for('auth.login') }}">Login</a></p>
-            <p><a href="{{ url_for('index') }}">Back to home</a></p>
+<body class="page">
+    <div class="shell">
+        <div class="top-bar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <div>
+                    <h1>Honeypot Control</h1>
+                    <p>Build your operator profile.</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a href="/">Home</a>
+                <a class="nav-primary" href="{{ url_for('auth.login') }}">Login</a>
+            </div>
+        </div>
+
+        <div class="card auth-card fade-up">
+            <div class="section-title">
+                <h2>Create account</h2>
+                <p>Secure your first workspace in minutes.</p>
+            </div>
+            {% if error %}
+            <div class="notice error" style="margin-bottom: 14px;">{{ error }}</div>
+            {% endif %}
+            <form method="POST" class="form-grid">
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+                <button type="submit" class="btn btn-success">Create account</button>
+            </form>
+            <div class="link-row">
+                <a href="{{ url_for('auth.login') }}">Already have an account? Login</a>
+                <a href="{{ url_for('index') }}">Back to home</a>
+            </div>
         </div>
     </div>
 </body>
