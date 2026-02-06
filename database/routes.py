@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, session, request, redirect, url_fo
 from database.database_communicator import DatabaseCommunicator
 from auth.extensions import limiter
 from alerts import record_suspicious_activity, notify_honeypot_down
+from honeypot.honeypot_to_db_routes import send_start_command, send_stop_command
 
 database_bp = Blueprint('database', __name__)
 db = DatabaseCommunicator()
@@ -80,13 +81,27 @@ def update_honeypot(honeypot_id):
             is_active_value = str(is_active_raw).lower() in ['true', '1', 'yes', 'on']
 
     current_state = db.get_honeypot(uid, honeypot_id)
-    was_active = current_state.get('honeypot', {}).get('is_active') if current_state.get('success') else None
+    current_honeypot = current_state.get('honeypot', {}) if current_state.get('success') else {}
+    was_active = current_honeypot.get('is_active')
+    current_protocols = current_honeypot.get('active_protocols', [])
+    protocols_provided = protocols is not None
 
     result = db.update_honeypot(uid, honeypot_id, name=name, protocols=protocols, is_active=is_active_value)
     
     if result['success']:
         if was_active and is_active_value is False:
             notify_honeypot_down(uid, honeypot_id)
+            send_stop_command(honeypot_id)
+        elif was_active and protocols_provided:
+            new_protocols = set(protocols)
+            previous_protocols = set(current_protocols or [])
+            protocols_to_start = sorted(new_protocols - previous_protocols)
+            protocols_to_stop = sorted(previous_protocols - new_protocols)
+
+            if protocols_to_start:
+                send_start_command(honeypot_id, protocols_to_start)
+            if protocols_to_stop:
+                send_stop_command(honeypot_id, protocols_to_stop)
         return redirect(url_for('database.honeypots', success='Honeypot updated successfully'))
     else:
         return redirect(url_for('database.honeypots', error=result['error']))

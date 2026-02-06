@@ -318,9 +318,10 @@ class DatabaseCommunicator:
                 return {"success": False, "error": "Honeypot not found"}
             
             # Check if attempting to change protocols on an offline honeypot
+            # Allow if we're also setting is_active=True in this same call (honeypot coming online)
             if protocols is not None:
                 current_honeypot = db[uid]["honeypots"][honeypot_id]
-                if not current_honeypot["is_active"]:
+                if not current_honeypot["is_active"] and not is_active:
                     return {"success": False, "error": "Cannot adjust active protocols while honeypot is offline"}
             
             if name is not None:
@@ -444,3 +445,24 @@ class DatabaseCommunicator:
         """
         self.update_honeypot(uid, honeypot_id, last_active=datetime.now().isoformat())
         return self.update_honeypot(uid, honeypot_id, is_active=True)
+
+    def find_honeypot_owner(self, honeypot_id):
+        """
+        Find which user owns a given honeypot_id.
+        
+        Args:
+            honeypot_id (str): Honeypot identifier
+            
+        Returns:
+            str: UID of the owner, or None if not found
+        """
+        try:
+            db = self._load_db()
+            
+            for uid, user_data in db.items():
+                if honeypot_id in user_data.get("honeypots", {}):
+                    return uid
+            
+            return None
+        except Exception as e:
+            return None

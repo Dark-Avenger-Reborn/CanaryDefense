@@ -1,6 +1,10 @@
 pyrebase4==4.9.0
 flask==3.1.2
 flask_limiter==4.1.1
+flask-socketio==5.3.7
+python-socketio==5.11.4
+python-engineio==4.9.1
+simple-websocket==1.0.0
 python-dotenv==1.2.1
 honeypots==0.36
 requests==2.31.0

@@ -4,14 +4,31 @@ from auth.extensions import limiter
 from database.routes import database_bp
 from database.database_communicator import DatabaseCommunicator
 from honeypot.routes import honeypot_bp, honeypot_api_bp
+from honeypot.honeypot_to_db_routes import socketio
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
+app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
+
+# Initialize extensions
 limiter.init_app(app)
+socketio.init_app(
+    app,
+    cors_allowed_origins="*",
+    manage_session=False,
+    async_mode='threading',
+    engineio_logger=False,
+    socketio_logger=False,
+    ping_timeout=60,
+    ping_interval=25
+)
+
+# Register blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(database_bp)
 app.register_blueprint(honeypot_bp)
 app.register_blueprint(honeypot_api_bp)
+
 db = DatabaseCommunicator()
 
 
@@ -68,4 +85,5 @@ def settings():
     return redirect(url_for('auth.settings'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Use socketio.run() instead of app.run() to enable WebSocket support
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
