@@ -297,7 +297,8 @@ WorkingDirectory=$INSTALL_DIR
 $exec_start_pre
 ExecStartPre=/usr/bin/test -f $INSTALL_DIR/config.json
 Environment=PYTHONUNBUFFERED=1
-ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/honeypot_client.py
+Environment=PYTHONNOUSERSITE=1
+ExecStart=$INSTALL_DIR/venv/bin/python -s $INSTALL_DIR/honeypot_client.py
 StandardOutput=append:$INSTALL_DIR/client.log
 StandardError=append:$INSTALL_DIR/client.log
 Restart=on-failure
@@ -312,7 +313,7 @@ EOF
 }
 
 setup_cron() {
-	local cron_line="@reboot $INSTALL_DIR/venv/bin/python $INSTALL_DIR/honeypot_client.py >> $INSTALL_DIR/client.log 2>&1"
+	local cron_line="@reboot PYTHONNOUSERSITE=1 $INSTALL_DIR/venv/bin/python -s $INSTALL_DIR/honeypot_client.py >> $INSTALL_DIR/client.log 2>&1"
 	(crontab -u "$HONEYPOT_USER" -l 2>/dev/null | grep -v "honeypot_client.py" || true; echo "$cron_line") | crontab -u "$HONEYPOT_USER" -
 
 	if [[ "$MAP_PORTS" = "yes" ]]; then
