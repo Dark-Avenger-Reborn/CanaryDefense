@@ -8,6 +8,7 @@ Lightweight alert orchestration for honeypot events.
 This module keeps in-memory state only; a process restart resets timers.
 """
 
+import html
 import os
 import threading
 import time
@@ -52,6 +53,72 @@ def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
     return "\n".join(lines)
 
 
+def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
+    user = _db.get_user_entry(uid)
+    user_email = user.get("data", {}).get("email") if user.get("success") else "unknown"
+
+    safe_honeypot_id = html.escape(str(honeypot_id))
+    safe_user_email = html.escape(str(user_email))
+    safe_total = html.escape(str(len(logs)))
+
+    rows = []
+    for log in logs:
+        rows.append(
+            "".join(
+                [
+                    "<tr>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('timestamp', 'n/a')))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('src_ip', log.get('source_ip', 'n/a'))))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('dest_ip', log.get('destination_ip', 'n/a'))))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('protocol', log.get('server', 'n/a'))))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('status', 'n/a')))}</td>",
+                    "</tr>",
+                ]
+            )
+        )
+
+    rows_html = "".join(rows) if rows else (
+        "<tr><td colspan=\"5\" style=\"padding:10px;color:#6b7280;\">No events recorded.</td></tr>"
+    )
+
+    return (
+        "<div style=\"margin:0;padding:0;background-color:#f3f4f6;\">"
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background-color:#f3f4f6;padding:24px 0;\">"
+        "<tr><td align=\"center\">"
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"680\" style=\"width:680px;max-width:92vw;background-color:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111827;\">"
+        "<tr><td style=\"background:linear-gradient(120deg,#0f172a,#1f2937);padding:20px 24px;\">"
+        "<div style=\"font-size:18px;font-weight:600;color:#ffffff;\">Honeypot activity detected</div>"
+        "<div style=\"font-size:13px;color:#e5e7eb;margin-top:6px;\">Immediate review recommended</div>"
+        "</td></tr>"
+        "<tr><td style=\"padding:20px 24px;\">"
+        f"<div style=\"font-size:14px;margin-bottom:6px;\"><strong>Honeypot:</strong> {safe_honeypot_id}</div>"
+        f"<div style=\"font-size:14px;margin-bottom:6px;\"><strong>Account:</strong> {safe_user_email}</div>"
+        f"<div style=\"font-size:14px;color:#374151;\"><strong>Total events collected:</strong> {safe_total}</div>"
+        "</td></tr>"
+        "<tr><td style=\"padding:0 24px 24px 24px;\">"
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"border-collapse:collapse;font-size:12px;\">"
+        "<thead>"
+        "<tr style=\"background-color:#f9fafb;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;\">"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Timestamp</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Source IP</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Dest IP</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Protocol</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Status</th>"
+        "</tr>"
+        "</thead>"
+        f"<tbody>{rows_html}</tbody>"
+        "</table>"
+        "</td></tr>"
+        "<tr><td style=\"padding:16px 24px 24px 24px;color:#6b7280;font-size:12px;\">"
+        "You are receiving this alert because suspicious activity alerts are enabled in your settings."
+        "</td></tr>"
+        "</table>"
+        "</td></tr>"
+        "</table>"
+        "</div>"
+    )
+
+
 def _send_activity_email(uid: str, honeypot_id: str, logs: List[dict]):
     user_data = _db.get_user_entry(uid)
     if not user_data.get("success"):
@@ -65,7 +132,8 @@ def _send_activity_email(uid: str, honeypot_id: str, logs: List[dict]):
     recipients = alerts.get("emails", [])
     subject = f"Honeypot activity detected: {honeypot_id}"
     body = _build_activity_body(uid, honeypot_id, logs)
-    send_email(recipients, subject, body)
+    html_body = _build_activity_html(uid, honeypot_id, logs)
+    send_email(recipients, subject, body, html_body)
 
 
 def _finalize_pending(key: Tuple[str, str]):
@@ -118,6 +186,28 @@ def notify_honeypot_down(uid: str, honeypot_id: str):
         f"The honeypot '{honeypot_name}' (ID: {honeypot_id}) was marked inactive.\n"
         "Please check the honeypot or restart it if this is unexpected."
     )
-    send_email(recipients, subject, body)
+    html_body = (
+        "<div style=\"margin:0;padding:0;background-color:#f3f4f6;\">"
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background-color:#f3f4f6;padding:24px 0;\">"
+        "<tr><td align=\"center\">"
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"640\" style=\"width:640px;max-width:92vw;background-color:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111827;\">"
+        "<tr><td style=\"background:linear-gradient(120deg,#991b1b,#dc2626);padding:18px 24px;\">"
+        "<div style=\"font-size:18px;font-weight:600;color:#ffffff;\">Honeypot down</div>"
+        "<div style=\"font-size:13px;color:#fee2e2;margin-top:6px;\">Immediate attention required</div>"
+        "</td></tr>"
+        "<tr><td style=\"padding:20px 24px;\">"
+        f"<div style=\"font-size:14px;margin-bottom:10px;\"><strong>Honeypot:</strong> {html.escape(str(honeypot_name))}</div>"
+        f"<div style=\"font-size:14px;margin-bottom:16px;\"><strong>ID:</strong> {html.escape(str(honeypot_id))}</div>"
+        "<div style=\"font-size:14px;color:#374151;\">The honeypot was marked inactive. Please check the honeypot or restart it if this is unexpected.</div>"
+        "</td></tr>"
+        "<tr><td style=\"padding:16px 24px 24px 24px;color:#6b7280;font-size:12px;\">"
+        "You are receiving this alert because honeypot-down alerts are enabled in your settings."
+        "</td></tr>"
+        "</table>"
+        "</td></tr>"
+        "</table>"
+        "</div>"
+    )
+    send_email(recipients, subject, body, html_body)
 
 

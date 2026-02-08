@@ -9,11 +9,17 @@ observe the notification in development.
 
 import os
 import smtplib
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 
 
-def send_email(recipients: Iterable[str], subject: str, body: str) -> Tuple[bool, str]:
+def send_email(
+    recipients: Iterable[str],
+    subject: str,
+    body: str,
+    html_body: Optional[str] = None,
+) -> Tuple[bool, str]:
     """
     Send an email to the provided recipients.
 
@@ -30,10 +36,13 @@ def send_email(recipients: Iterable[str], subject: str, body: str) -> Tuple[bool
     smtp_password = os.getenv("SMTP_PASSWORD")
     sender = os.getenv("SMTP_SENDER", smtp_user or "alerts@example.com")
 
-    msg = MIMEText(body)
+    msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
+    msg.attach(MIMEText(body, "plain"))
+    if html_body:
+        msg.attach(MIMEText(html_body, "html"))
 
     if not smtp_host or not smtp_user or not smtp_password:
         print(f"[alert-email] SMTP not configured; would send to {recipients}: {subject}\n{body}")
