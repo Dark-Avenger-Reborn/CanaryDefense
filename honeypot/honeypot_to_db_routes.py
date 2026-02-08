@@ -256,6 +256,9 @@ def handle_disconnect():
                 )
             except Exception as e:
                 logger.error(f"Error updating honeypot status on disconnect: {str(e)}")
+            
+            # Trigger alert if configured
+            notify_honeypot_down(uid, honeypot_id)
         else:
             logger.info(f"Unauthenticated client disconnected: {request.sid}")
     except Exception as e:
