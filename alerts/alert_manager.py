@@ -129,11 +129,31 @@ def _send_activity_email(uid: str, honeypot_id: str, logs: List[dict]):
     if not preferences.get("alert_on_suspicious_activity", False):
         return
 
+    # Get the timestamp of the last email sent for this honeypot
+    last_email_time = _db.get_last_alert_email_time(uid, honeypot_id)
+    
+    # Filter logs to only include those after the last email timestamp
+    if last_email_time:
+        filtered_logs = [
+            log for log in logs
+            if log.get("timestamp", "") > last_email_time
+        ]
+    else:
+        filtered_logs = logs
+    
+    # Only send email if there are new logs
+    if not filtered_logs:
+        return
+
     recipients = alerts.get("emails", [])
     subject = f"Honeypot activity detected: {honeypot_id}"
-    body = _build_activity_body(uid, honeypot_id, logs)
-    html_body = _build_activity_html(uid, honeypot_id, logs)
-    send_email(recipients, subject, body, html_body)
+    body = _build_activity_body(uid, honeypot_id, filtered_logs)
+    html_body = _build_activity_html(uid, honeypot_id, filtered_logs)
+    success, message = send_email(recipients, subject, body, html_body)
+    
+    # Update the last email timestamp only if the email was sent successfully
+    if success:
+        _db.update_last_alert_email_time(uid, honeypot_id)
 
 
 def _finalize_pending(key: Tuple[str, str]):

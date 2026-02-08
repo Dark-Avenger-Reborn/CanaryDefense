@@ -436,7 +436,7 @@ class DatabaseCommunicator:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def update_honeypot(self, uid, honeypot_id, name=None, protocols=None, is_active=None, last_active=None):
+    def update_honeypot(self, uid, honeypot_id, name=None, protocols=None, is_active=None, last_active=None, last_alert_email_sent_at=None):
         """
         Update honeypot configuration.
 
@@ -447,6 +447,7 @@ class DatabaseCommunicator:
             protocols (list): New list of protocols (optional)
             is_active (bool): Active status (optional)
             last_active (str): Last active timestamp (optional)
+            last_alert_email_sent_at (str): Last alert email sent timestamp (optional)
 
         Returns:
             dict: Success status
@@ -474,6 +475,8 @@ class DatabaseCommunicator:
                     honeypots[honeypot_id]["is_active"] = is_active
                 if last_active is not None:
                     honeypots[honeypot_id]["last_active"] = last_active
+                if last_alert_email_sent_at is not None:
+                    honeypots[honeypot_id]["last_alert_email_sent_at"] = last_alert_email_sent_at
 
                 self._save_user_data(conn, uid, user_data)
             return {"success": True, "message": "Honeypot updated successfully"}
@@ -642,3 +645,43 @@ class DatabaseCommunicator:
                 return None
         except Exception:
             return None
+
+    def get_last_alert_email_time(self, uid, honeypot_id):
+        """
+        Get the timestamp of the last alert email sent for a honeypot.
+
+        Args:
+            uid (str): Firebase UID
+            honeypot_id (str): Honeypot identifier
+
+        Returns:
+            str: ISO format timestamp or None if no email has been sent
+        """
+        try:
+            with self._connect() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return None
+                honeypot = user_data.get("honeypots", {}).get(honeypot_id)
+                if honeypot is None:
+                    return None
+                return honeypot.get("last_alert_email_sent_at")
+        except Exception:
+            return None
+
+    def update_last_alert_email_time(self, uid, honeypot_id):
+        """
+        Update the timestamp of the last alert email sent for a honeypot to now.
+
+        Args:
+            uid (str): Firebase UID
+            honeypot_id (str): Honeypot identifier
+
+        Returns:
+            dict: Success status
+        """
+        return self.update_honeypot(
+            uid,
+            honeypot_id,
+            last_alert_email_sent_at=datetime.now().isoformat()
+        )
