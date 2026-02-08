@@ -124,10 +124,7 @@ def dashboard_data():
     uid = session.get('uid')
     honeypots_result = db.list_honeypots(uid)
     honeypots_data = honeypots_result.get('honeypots', {}) if honeypots_result['success'] else {}
-    stats_result = db.get_user_stats(uid)
-    stats = stats_result.get('stats', {}) if stats_result['success'] else {}
-
-    total_honeypots = stats.get('total_honeypots_created', 0)
+    total_honeypots = len(honeypots_data)
     active_honeypots = sum(1 for hp in honeypots_data.values() if hp.get('is_active', False))
     total_logs = sum(len(hp.get('logs', [])) for hp in honeypots_data.values())
 

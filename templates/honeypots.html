@@ -207,14 +207,17 @@
         const createNotice = document.getElementById('honeypot-create-notice');
         const installModal = document.getElementById('install-modal');
         const installCommandEl = document.getElementById('install-command');
+        let installModalOpen = false;
 
         function openInstallModal(command) {
             installCommandEl.textContent = command;
             installModal.classList.add('active');
+            installModalOpen = true;
         }
 
         function closeInstallModal() {
             installModal.classList.remove('active');
+            installModalOpen = false;
             window.location.reload();
         }
 
@@ -350,10 +353,24 @@
                 protocolsEl.textContent = protocols.length ? protocols.join(', ') : 'None';
             }
 
+            updateProtocolInputs(hpId, hp.is_active, hp.active_protocols || []);
+
             const logsEl = document.getElementById(`hp-logs-${hpId}`);
             if (logsEl) {
                 logsEl.textContent = hp.logs_count ?? 0;
             }
+        }
+
+        function updateProtocolInputs(hpId, isActive, activeProtocols) {
+            const editForm = document.getElementById(`edit-${hpId}`);
+            if (!editForm) {
+                return;
+            }
+            const protocolInputs = editForm.querySelectorAll('input[type="checkbox"][name="protocols"]');
+            protocolInputs.forEach((input) => {
+                input.disabled = !isActive;
+                input.checked = activeProtocols.includes(input.value);
+            });
         }
 
         async function refreshHoneypots() {
@@ -370,7 +387,9 @@
                 const serverIds = Object.keys(honeypots);
                 const renderedIds = getRenderedHoneypotIds();
                 if (serverIds.length !== renderedIds.length || serverIds.some(id => !renderedIds.includes(id))) {
-                    window.location.reload();
+                    if (!installModalOpen) {
+                        window.location.reload();
+                    }
                     return;
                 }
                 serverIds.forEach((hpId) => updateHoneypotCard(hpId, honeypots[hpId]));

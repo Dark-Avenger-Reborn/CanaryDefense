@@ -119,3 +119,5 @@ def notify_honeypot_down(uid: str, honeypot_id: str):
         "Please check the honeypot or restart it if this is unexpected."
     )
     send_email(recipients, subject, body)
+
+
