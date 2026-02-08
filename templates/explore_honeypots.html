@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Explore Honeypots - {{ brand_name }}</title>
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+	<style>
+		.section-divider {
+			margin: 48px 0;
+			border: none;
+			height: 1px;
+			background: linear-gradient(90deg, transparent, var(--border), transparent);
+		}
+
+		.feature-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+			gap: 20px;
+			margin: 28px 0;
+		}
+
+		.feature-card {
+			padding: 24px;
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 12px;
+			transition: all 0.3s ease;
+		}
+
+		.feature-card:hover {
+			border-color: var(--accent);
+			box-shadow: var(--shadow-soft);
+			transform: translateY(-2px);
+		}
+
+		.feature-card h3 {
+			font-size: 1.1rem;
+			margin-bottom: 10px;
+			color: var(--ink);
+		}
+
+		.feature-card p {
+			font-size: 0.95rem;
+			line-height: 1.5;
+		}
+
+		.example-section {
+			background: var(--surface-2);
+			padding: 28px;
+			border-radius: 12px;
+			margin: 24px 0;
+		}
+
+		.example-item {
+			margin-bottom: 20px;
+			padding-bottom: 20px;
+			border-bottom: 1px solid var(--border);
+		}
+
+		.example-item:last-child {
+			margin-bottom: 0;
+			padding-bottom: 0;
+			border-bottom: none;
+		}
+
+		.example-item h4 {
+			color: var(--ink);
+			margin-bottom: 6px;
+			font-size: 1rem;
+		}
+
+		.example-item .example-description {
+			color: var(--muted);
+			font-size: 0.95rem;
+			margin-bottom: 8px;
+		}
+
+		.example-tags {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin-top: 10px;
+		}
+
+		.tag {
+			display: inline-block;
+			padding: 4px 10px;
+			background: var(--accent);
+			color: white;
+			border-radius: 999px;
+			font-size: 0.8rem;
+			font-weight: 500;
+		}
+
+		.tag.secondary {
+			background: var(--accent-2);
+		}
+
+		.tag.alt {
+			background: var(--accent-3);
+		}
+
+		.protocol-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+			gap: 12px;
+			margin: 20px 0;
+		}
+
+		.protocol-badge {
+			padding: 10px 14px;
+			background: var(--surface-2);
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			text-align: center;
+			font-size: 0.9rem;
+			font-weight: 500;
+		}
+
+		.cta-section {
+			background: linear-gradient(135deg, var(--accent), var(--accent-3));
+			color: white;
+			padding: 40px;
+			border-radius: 12px;
+			text-align: center;
+			margin: 40px 0;
+		}
+
+		.cta-section h2 {
+			color: white;
+			font-size: 1.8rem;
+			margin-bottom: 12px;
+		}
+
+		.cta-section p {
+			color: rgba(255, 255, 255, 0.9);
+			font-size: 1.05rem;
+			margin-bottom: 24px;
+			max-width: 600px;
+			margin-left: auto;
+			margin-right: auto;
+		}
+
+		.cta-buttons {
+			display: flex;
+			gap: 12px;
+			justify-content: center;
+			flex-wrap: wrap;
+		}
+
+		.cta-buttons .btn {
+			background: white;
+			color: var(--accent);
+			border: none;
+		}
+
+		.cta-buttons .btn-secondary {
+			background: rgba(255, 255, 255, 0.2);
+			color: white;
+			border: 1px solid rgba(255, 255, 255, 0.5);
+		}
+
+		.stats-row {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+			gap: 20px;
+			margin: 28px 0;
+		}
+
+		.stat-box {
+			text-align: center;
+			padding: 24px;
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 12px;
+		}
+
+		.stat-number {
+			font-size: 2rem;
+			font-weight: 700;
+			color: var(--accent);
+			font-family: "Fraunces", serif;
+		}
+
+		.stat-label {
+			color: var(--muted);
+			font-size: 0.95rem;
+			margin-top: 8px;
+		}
+
+		.process-flow {
+			display: flex;
+			flex-direction: column;
+			gap: 0;
+			margin: 28px 0;
+		}
+
+		.process-step {
+			display: flex;
+			gap: 20px;
+			padding: 24px;
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-bottom: none;
+			position: relative;
+		}
+
+		.process-step:last-child {
+			border-bottom: 1px solid var(--border);
+		}
+
+		.process-step::before {
+			content: attr(data-step);
+			position: absolute;
+			left: 24px;
+			top: 24px;
+			width: 32px;
+			height: 32px;
+			background: var(--accent);
+			color: white;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: 700;
+			flex-shrink: 0;
+		}
+
+		.process-step > div {
+			margin-left: 40px;
+			flex: 1;
+		}
+
+		.process-step h4 {
+			color: var(--ink);
+			margin-bottom: 6px;
+			font-size: 1rem;
+		}
+
+		.process-step p {
+			margin-bottom: 8px;
+		}
+
+		.code-block {
+			background: var(--ink);
+			color: #a0e7e5;
+			padding: 16px;
+			border-radius: 8px;
+			font-family: "Courier New", monospace;
+			font-size: 0.9rem;
+			overflow-x: auto;
+			margin: 12px 0;
+		}
+
+		@media (max-width: 768px) {
+			.cta-section {
+				padding: 28px 20px;
+			}
+
+			.cta-buttons {
+				flex-direction: column;
+			}
+
+			.cta-buttons .btn {
+				width: 100%;
+			}
+
+			.process-step::before {
+				left: 16px;
+				top: 16px;
+			}
+
+			.process-step > div {
+				margin-left: 36px;
+			}
+
+			.process-step {
+				padding: 20px 16px;
+			}
+		}
+	</style>
+</head>
+<body class="page">
+	<div class="shell">
+		<div class="top-bar">
+			<div class="brand">
+				<div class="brand-mark" aria-hidden="true"></div>
+				<div>
+					<h1>{{ brand_name }}</h1>
+					<p>Threat telemetry, simplified response.</p>
+				</div>
+			</div>
+			<div class="nav">
+				<a class="nav-primary" href="/login">Login</a>
+				<a href="/create_account">Create account</a>
+			</div>
+		</div>
+
+		<!-- Hero Section -->
+		<div class="card hero fade-up" style="margin-bottom: 40px;">
+			<div class="hero-copy">
+				<div class="hero-pill">
+					<span class="pill-dot" aria-hidden="true"></span>
+					<span>Deception technology explained.</span>
+				</div>
+				<h1>Understanding Honeypots and Threat Detection</h1>
+				<p>Learn how honeypots work as decoys to detect attackers, gather threat intelligence, and strengthen your security posture. A practical guide to deception operations.</p>
+			</div>
+		</div>
+
+		<!-- What is a Honeypot Section -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>What is a Honeypot?</h2>
+				<p>A primer on deception technology and threat detection</p>
+			</div>
+			<p style="margin-bottom: 16px; line-height: 1.6; font-size: 1rem;">
+				A <strong>honeypot</strong> is a computer system or service intentionally set up to appear vulnerable to attract and detect attackers. It's like placing a honeyed trap in your network—attackers are drawn to what appears to be an easy target, but every action they take is logged and monitored.
+			</p>
+			<p style="margin-bottom: 16px; line-height: 1.6; font-size: 1rem;">
+				Instead of securing systems against unauthorized access, honeypots take a different approach: they <strong>welcome attackers into controlled environments</strong> where all their activities are recorded. This technique has become a cornerstone of modern threat intelligence and incident response.
+			</p>
+			<p style="margin-bottom: 16px; line-height: 1.6; font-size: 1rem;">
+				{{ brand_name }} simplifies honeypot deployment, management, and monitoring, making deception operations accessible to security teams of all sizes.
+			</p>
+		</div>
+
+		<hr class="section-divider">
+
+		<!-- How It Works Section -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>How Honeypots Work</h2>
+				<p>The mechanics of deception and detection</p>
+			</div>
+
+			<div class="process-flow">
+				<div class="process-step" data-step="1">
+					<div>
+						<h4>Deploy & Configure</h4>
+						<p>Set up virtual or physical systems with {{ brand_name }}. Configure multiple protocols (SSH, HTTP, SMTP, DNS, FTP, etc.) to simulate real services. Generate a one-line install command to deploy honeypot agents across your infrastructure.</p>
+					</div>
+				</div>
+				<div class="process-step" data-step="2">
+					<div>
+						<h4>Attract & Engage</h4>
+						<p>Honeypots are designed to look attractive to attackers but remain isolated from your critical systems. They respond to network probes, port scans, and connection attempts as if they were real services—but with no actual data or value.</p>
+					</div>
+				</div>
+				<div class="process-step" data-step="3">
+					<div>
+						<h4>Log & Monitor</h4>
+						<p>Every interaction—port scans, login attempts, file transfers, commands executed—is captured in real-time. {{ brand_name }} logs connection details, protocols used, timestamps, IP addresses, and activity sequences.</p>
+					</div>
+				</div>
+				<div class="process-step" data-step="4">
+					<div>
+						<h4>Alert & Respond</h4>
+						<p>Receive immediate notifications when suspicious activity is detected. With {{ brand_name }}, you can configure alerts via email, segment findings by honeypot, and generate reports for incident investigation and threat analysis.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<hr class="section-divider">
+
+		<!-- Why Use Honeypots Section -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>Why Use Honeypots?</h2>
+				<p>Benefits of deception technology</p>
+			</div>
+
+			<div class="feature-grid">
+				<div class="feature-card">
+					<h3>🎯 Detect Breaches Early</h3>
+					<p>Any interaction with a honeypot is immediately suspicious. Since legitimate users never need to access them, you get zero false positives and immediate threat detection.</p>
+				</div>
+				<div class="feature-card">
+					<h3>📊 Gather Intelligence</h3>
+					<p>Learn attacker methods, tools, techniques, and tactics (ATT&CK). Understand what vulnerabilities are being exploited and how attackers probe your network.</p>
+				</div>
+				<div class="feature-card">
+					<h3>⚡ Low Alert Fatigue</h3>
+					<p>Unlike traditional IDS/IPS systems, honeypots generate fewer false positives. Every alert is high-confidence, enabling focused incident response.</p>
+				</div>
+				<div class="feature-card">
+					<h3>🛡️ Strengthen Defense</h3>
+					<p>Use honeypot findings to improve firewall rules, patch systems, and harden your actual infrastructure. Turn threat data into actionable security improvements.</p>
+				</div>
+				<div class="feature-card">
+					<h3>🌐 Monitor Multiple Protocols</h3>
+					<p>Track attacks across SSH, HTTP, FTP, SMTP, DNS, RDP, database protocols, and more. Understand the full spectrum of attack surface in your network.</p>
+				</div>
+				<div class="feature-card">
+					<h3>⏱️ Real-Time Visibility</h3>
+					<p>Track active honeypots, view recent logs instantly, and monitor protocol usage across your deployment. Make security decisions based on live data.</p>
+				</div>
+			</div>
+		</div>
+
+		<hr class="section-divider">
+
+		<!-- Supported Protocols -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>Supported Protocols</h2>
+				<p>Deploy honeypots for these services</p>
+			</div>
+			<p style="margin-bottom: 20px; line-height: 1.6;">
+				{{ brand_name }} supports honeypots for a wide range of services and protocols, allowing you to create decoys for nearly any part of your infrastructure:
+			</p>
+			<div class="protocol-grid">
+				<div class="protocol-badge">SSH</div>
+				<div class="protocol-badge">HTTP / HTTPS</div>
+				<div class="protocol-badge">FTP</div>
+				<div class="protocol-badge">SMTP / POP3 / IMAP</div>
+				<div class="protocol-badge">DNS</div>
+				<div class="protocol-badge">MySQL / PostgreSQL</div>
+				<div class="protocol-badge">RDP</div>
+				<div class="protocol-badge">SNMP</div>
+				<div class="protocol-badge">LDAP</div>
+				<div class="protocol-badge">Redis</div>
+				<div class="protocol-badge">Memcache</div>
+				<div class="protocol-badge">Oracle</div>
+				<div class="protocol-badge">MSSQL</div>
+				<div class="protocol-badge">HTTP Proxy</div>
+				<div class="protocol-badge">SOCKS5</div>
+				<div class="protocol-badge">VNC</div>
+				<div class="protocol-badge">Telnet</div>
+				<div class="protocol-badge">DHCP</div>
+				<div class="protocol-badge">NTP</div>
+				<div class="protocol-badge">SIP</div>
+				<div class="protocol-badge">IRC</div>
+				<div class="protocol-badge">Elastic</div>
+				<div class="protocol-badge">IPP</div>
+				<div class="protocol-badge">PJL</div>
+				<div class="protocol-badge">SMB</div>
+			</div>
+		</div>
+
+		<hr class="section-divider">
+
+		<!-- Real-World Examples -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>Real-World Examples</h2>
+				<p>Common honeypot deployment scenarios</p>
+			</div>
+
+			<div class="example-section">
+				<div class="example-item">
+					<h4>🔐 SSH Honeypot for Credential Scanning</h4>
+					<div class="example-description">
+						Deploy an SSH honeypot on the network subnet. Attackers attempt common credentials (root/admin/test passwords). Each failed login attempt is logged with attacker IP, timestamp, and credentials tried—revealing password spray campaigns.
+					</div>
+					<div class="example-tags">
+						<span class="tag">SSH</span>
+						<span class="tag secondary">Credential Attack</span>
+						<span class="tag alt">Early Detection</span>
+					</div>
+				</div>
+
+				<div class="example-item">
+					<h4>💾 Web Server Honeypot</h4>
+					<div class="example-description">
+						Create a fake web application that mimics a vulnerable service. Attackers probe for common vulnerabilities (SQL injection, path traversal, command injection). Each exploitation attempt is logged, revealing attacker intent and methods.
+					</div>
+					<div class="example-tags">
+						<span class="tag">HTTP / HTTPS</span>
+						<span class="tag secondary">Vulnerability Scanning</span>
+						<span class="tag alt">Threat Intelligence</span>
+					</div>
+				</div>
+
+				<div class="example-item">
+					<h4>🗄️ Database Honeypot</h4>
+					<div class="example-description">
+						Deploy a fake MySQL or PostgreSQL instance with default credentials. Attackers discover it via port scanning and attempt to log in. Monitor for data exfiltration attempts, SQL injection, and lateral movement tactics.
+					</div>
+					<div class="example-tags">
+						<span class="tag">MySQL / PostgreSQL</span>
+						<span class="tag secondary">Database Attack</span>
+						<span class="tag alt">Breach Simulation</span>
+					</div>
+				</div>
+
+				<div class="example-item">
+					<h4>📧 Email Service Honeypot</h4>
+					<div class="example-description">
+						Set up a honeypot SMTP/POP3 server that accepts connections. Catch spam distribution attempts, email harvesting bots, and credential stuffing attacks without affecting real email services.
+					</div>
+					<div class="example-tags">
+						<span class="tag">SMTP / POP3</span>
+						<span class="tag secondary">Email Attack</span>
+						<span class="tag alt">Bot Detection</span>
+					</div>
+				</div>
+
+				<div class="example-item">
+					<h4>🔍 Distributed Scanning Detection</h4>
+					<div class="example-description">
+						Deploy honeypots across your network range. Monitor for port scanning, vulnerability probing, and reconnaissance activities. Identify attackers performing pre-exploitation surveys and network mapping.
+					</div>
+					<div class="example-tags">
+						<span class="tag">Multi-Protocol</span>
+						<span class="tag secondary">Reconnaissance</span>
+						<span class="tag alt">Attacker Profiling</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<hr class="section-divider">
+
+		<!-- Key Features -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>{{ brand_name }} Features</h2>
+				<p>Tools for effective honeypot management</p>
+			</div>
+
+			<div class="feature-grid">
+				<div class="feature-card">
+					<h3>Intuitive Dashboard</h3>
+					<p>Monitor all honeypots, view live statistics, and check recent attacks in a single view. See active honeypots, total logs, and protocol distribution at a glance.</p>
+				</div>
+				<div class="feature-card">
+					<h3>Auto-Generated Install Commands</h3>
+					<p>No manual configuration. Click, copy, paste the install command on your target host. The honeypot agent starts collecting data immediately.</p>
+				</div>
+				<div class="feature-card">
+					<h3>Protocol Flexibility</h3>
+					<p>Enable or disable protocols per honeypot on the fly. Host multiple services on one honeypot or create service-specific decoys. Adjust protocols without redeploying.</p>
+				</div>
+				<div class="feature-card">
+					<h3>Comprehensive Logging</h3>
+					<p>Capture IP addresses, ports, timestamps, protocols, login attempts, and full activity sequences. Search, filter, and export logs for analysis and reporting.</p>
+				</div>
+				<div class="feature-card">
+					<h3>Alert Configuration</h3>
+					<p>Receive email notifications for suspicious activity. Configure alert recipients and preferences. Never miss an attack on your honeypots.</p>
+				</div>
+				<div class="feature-card">
+					<h3>Attack Classification</h3>
+					<p>Logs are tagged as scans, infiltrations, or other activity types. Quickly distinguish between reconnaissance and exploitation attempts.</p>
+				</div>
+			</div>
+		</div>
+
+		<hr class="section-divider">
+
+		<!-- Getting Started Stats -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>{{ brand_name }} in Numbers</h2>
+				<p>See what our community is protecting</p>
+			</div>
+
+			<div class="stats-row">
+				<div class="stat-box">
+					<div class="stat-number" id="stat-total-accounts">{{ total_accounts }}</div>
+					<div class="stat-label">Operator Accounts</div>
+				</div>
+				<div class="stat-box">
+					<div class="stat-number" id="stat-total-honeypots">{{ total_honeypots }}</div>
+					<div class="stat-label">Honeypots Deployed</div>
+				</div>
+				<div class="stat-box">
+					<div class="stat-number" id="stat-total-logs">{{ total_logs }}</div>
+					<div class="stat-label">Logs Captured</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Call to Action -->
+		<div class="cta-section">
+			<h2>Ready to Deploy Honeypots?</h2>
+			<p>Start detecting threats in minutes. Deploy your first honeypot today and gain visibility into attacker behavior on your network.</p>
+			<div class="cta-buttons">
+				<a class="btn" href="/create_account">Create Free Account</a>
+				<a class="btn btn-secondary" href="/login">Sign In</a>
+			</div>
+		</div>
+
+		<!-- FAQ Section -->
+		<div class="card fade-up">
+			<div class="section-title">
+				<h2>Frequently Asked Questions</h2>
+				<p>Common questions about honeypots</p>
+			</div>
+
+			<div style="display: grid; gap: 20px;">
+				<div>
+					<h4 style="color: var(--ink); margin-bottom: 8px;">Are honeypots safe to deploy?</h4>
+					<p style="line-height: 1.6;">Yes. Honeypots are intentionally isolated decoys with no real data or services. They're designed to attract attackers away from production systems. However, you should monitor them closely and isolate them from critical infrastructure.</p>
+				</div>
+
+				<div>
+					<h4 style="color: var(--ink); margin-bottom: 8px;">Can I deploy honeypots on production servers?</h4>
+					<p style="line-height: 1.6;">While you can, it's best practice to deploy them on separate infrastructure or in segmented networks. This prevents performance impact and ensures attackers don't have access to your real systems.</p>
+				</div>
+
+				<div>
+					<h4 style="color: var(--ink); margin-bottom: 8px;">What if an attacker compromises a honeypot?</h4>
+					<p style="line-height: 1.6;">That's the goal—honeypots are designed to be compromised in controlled environments. All attacker actions are logged. You observe the attack without risk to real systems and gain valuable intelligence.</p>
+				</div>
+
+				<div>
+					<h4 style="color: var(--ink); margin-bottom: 8px;">How do I know if a honeypot is being attacked?</h4>
+					<p style="line-height: 1.6;">Any activity on a honeypot is suspicious by definition (since it's not used for legitimate purposes). {{ brand_name }} logs all interactions and can send alerts via email when activity is detected.</p>
+				</div>
+
+				<div>
+					<h4 style="color: var(--ink); margin-bottom: 8px;">Can honeypots be used in legal compliance?</h4>
+					<p style="line-height: 1.6;">Yes. Honeypots are recognized by major compliance frameworks (NIST, CIS, OWASP) as a valid detection mechanism. They provide high-confidence threat alerts with minimal false positives.</p>
+				</div>
+
+				<div>
+					<h4 style="color: var(--ink); margin-bottom: 8px;">Do I need special hardware for honeypots?</h4>
+					<p style="line-height: 1.6;">No. {{ brand_name }} honeypots run on any Linux system—virtual machines, cloud instances, or physical servers. Deploy wherever your network monitoring is needed.</p>
+				</div>
+			</div>
+		</div>
+
+		<hr class="section-divider">
+
+		<!-- Final CTA -->
+		<div class="card fade-up" style="text-align: center; padding-top: 0;">
+			<div class="section-title">
+				<h2>Start Protecting Your Network</h2>
+				<p>Gain visibility into threats with minimal configuration</p>
+			</div>
+			<p style="margin-bottom: 24px; line-height: 1.6; font-size: 1rem;">
+				{{ brand_name }} makes honeypot deployment as simple as running a single command. Deploy your first honeypot in under 5 minutes and start detecting attacks immediately.
+			</p>
+			<div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+				<a class="btn" href="/create_account">Create Account</a>
+				<a class="btn btn-secondary" href="/login">Sign In</a>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		const REFRESH_INTERVAL_MS = 4000;
+		const statAccounts = document.getElementById('stat-total-accounts');
+		const statLogs = document.getElementById('stat-total-logs');
+		const statHoneypots = document.getElementById('stat-total-honeypots');
+
+		async function refreshPublicCounts() {
+			if (document.visibilityState === 'hidden') {
+				return;
+			}
+			try {
+				const response = await fetch('/api/public_counts', { cache: 'no-store' });
+				const payload = await response.json();
+				if (!response.ok || !payload.success) {
+					return;
+				}
+				if (statAccounts) {
+					statAccounts.textContent = payload.total_accounts ?? 0;
+				}
+				if (statLogs) {
+					statLogs.textContent = payload.total_logs ?? 0;
+				}
+				if (statHoneypots) {
+					statHoneypots.textContent = payload.total_honeypots ?? 0;
+				}
+			} catch (error) {
+				console.warn('Public count refresh failed', error);
+			}
+		}
+
+		setInterval(refreshPublicCounts, REFRESH_INTERVAL_MS);
+	</script>
+</body>
+</html>

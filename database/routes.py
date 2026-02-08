@@ -14,8 +14,16 @@ def is_logged_in():
 @database_bp.route('/honeypots')
 def honeypots():
     if not is_logged_in():
-        return redirect(url_for('auth.login'))
+        # Show the explore/informational page for non-logged-in users
+        counts = db.get_global_counts()
+        return render_template(
+            'explore_honeypots.html',
+            total_accounts=counts.get('total_users', 0),
+            total_honeypots=counts.get('total_honeypots', 0),
+            total_logs=counts.get('total_logs', 0)
+        )
     
+    # Show management page for logged-in users
     uid = session.get('uid')
     result = db.list_honeypots(uid)
     
