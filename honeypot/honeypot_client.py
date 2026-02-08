@@ -1,3 +1,4 @@
+import ast
 import json
 import logging
 import os
@@ -76,16 +77,29 @@ class JsonLogCaptureHandler(logging.Handler):
     def emit(self, record):
         try:
             message = record.getMessage()
-            if not message or not message.strip().startswith("{"):
+            if not message or not message.strip():
                 return
 
-            parsed = json.loads(message)
+            parsed = None
+            stripped = message.strip()
+            if stripped.startswith("{"):
+                parsed = json.loads(stripped)
+            elif stripped.startswith("[") or stripped.startswith("("):
+                parsed = ast.literal_eval(stripped)
+                if isinstance(parsed, (list, tuple)):
+                    parsed = parsed[1] if len(parsed) > 1 and isinstance(parsed[1], dict) else None
+                if isinstance(parsed, dict) and "server" not in parsed and "protocol" not in parsed:
+                    parsed = None
+
             if not isinstance(parsed, dict):
                 return
 
-            server_name = parsed.get("server")
+            server_name = parsed.get("server") or parsed.get("server_name") or parsed.get("protocol")
             if not server_name:
                 return
+
+            if "server" not in parsed and parsed.get("protocol"):
+                parsed["server"] = f"{parsed['protocol']}_server"
 
             protocol = server_name.replace("_server", "")
             filename = f"{protocol}.log"
@@ -154,15 +168,26 @@ def _build_log_entry(protocol, line):
         "details": line,
     }
 
+    parsed = None
     if line.startswith("{"):
         try:
             parsed = json.loads(line)
-            if isinstance(parsed, dict):
-                log_entry.update(parsed)
-                if "timestamp" not in log_entry:
-                    log_entry["timestamp"] = datetime.utcnow().isoformat() + "Z"
         except Exception:
-            pass
+            parsed = None
+    elif line.startswith("[") or line.startswith("("):
+        try:
+            candidate = ast.literal_eval(line)
+            if isinstance(candidate, (list, tuple)) and len(candidate) > 1 and isinstance(candidate[1], dict):
+                parsed = candidate[1]
+            elif isinstance(candidate, dict):
+                parsed = candidate
+        except Exception:
+            parsed = None
+
+    if isinstance(parsed, dict):
+        log_entry.update(parsed)
+        if "timestamp" not in log_entry:
+            log_entry["timestamp"] = datetime.utcnow().isoformat() + "Z"
 
     return log_entry
 

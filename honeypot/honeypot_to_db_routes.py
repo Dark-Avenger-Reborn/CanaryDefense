@@ -7,6 +7,8 @@ No dashboard communication - this is purely for honeypot instances to communicat
 from flask import request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
+from collections import deque
+import time
 import logging
 from functools import wraps
 from database.database_communicator import DatabaseCommunicator
@@ -21,6 +23,169 @@ socketio = SocketIO()
 # Track authenticated honeypots by their socket SID
 # Key: request.sid, Value: {'uid': str, 'honeypot_id': str}
 authenticated_honeypots = {}
+
+SCAN_WINDOW_SECONDS = 60
+SCAN_EVENT_THRESHOLD = 8
+SCAN_PORT_THRESHOLD = 4
+SCAN_PROTOCOL_THRESHOLD = 3
+
+_recent_activity_by_src = {}
+
+
+def _parse_iso_timestamp(value):
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        return datetime.fromisoformat(value)
+    except Exception:
+        return None
+
+
+def _coerce_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_status(raw_status, details_text=""):
+    if raw_status is None:
+        raw_status = ""
+    status = str(raw_status).strip().lower()
+    mapping = {
+        "ok": "success",
+        "accepted": "success",
+        "success": "success",
+        "fail": "failed",
+        "failed": "failed",
+        "denied": "failed",
+        "invalid": "failed",
+        "error": "error",
+        "scan": "scan",
+        "infiltration": "infiltration",
+        "unknown": "unknown",
+    }
+    if status in mapping:
+        return mapping[status]
+
+    details_lower = details_text.lower()
+    if "error" in details_lower:
+        return "error"
+    if any(token in details_lower for token in ("fail", "denied", "invalid")):
+        return "failed"
+    if any(token in details_lower for token in ("success", "accepted", "authenticated")):
+        return "success"
+    return "unknown"
+
+
+def _normalize_action(log_entry):
+    action = log_entry.get("action") or log_entry.get("event") or log_entry.get("type")
+    if action:
+        return str(action).strip().lower()
+
+    if log_entry.get("command") or log_entry.get("cmd"):
+        return "command"
+    if log_entry.get("query"):
+        return "query"
+
+    details = str(log_entry.get("details") or log_entry.get("data") or log_entry.get("message") or "")
+    details_lower = details.lower()
+    if "login" in details_lower or "auth" in details_lower:
+        return "login"
+    if "query" in details_lower:
+        return "query"
+    if "command" in details_lower:
+        return "command"
+    return "connection"
+
+
+def _normalize_log_entry(log_entry):
+    normalized = dict(log_entry or {})
+
+    details = normalized.get("details") or normalized.get("data") or normalized.get("message")
+    if details and "details" not in normalized:
+        normalized["details"] = details
+
+    normalized["action"] = _normalize_action(normalized)
+
+    src_ip = normalized.get("src_ip") or normalized.get("source_ip") or normalized.get("client_ip")
+    if not src_ip:
+        src_ip = normalized.get("ip")
+    if src_ip:
+        normalized["src_ip"] = src_ip
+
+    src_port = normalized.get("src_port") or normalized.get("client_port")
+    if src_port is not None:
+        normalized["src_port"] = _coerce_int(src_port) or src_port
+
+    dest_ip = normalized.get("dest_ip") or normalized.get("destination_ip") or normalized.get("server_ip")
+    if dest_ip:
+        normalized["dest_ip"] = dest_ip
+
+    dest_port = normalized.get("dest_port") or normalized.get("port")
+    if dest_port is not None:
+        normalized["dest_port"] = _coerce_int(dest_port) or dest_port
+
+    server = normalized.get("server") or normalized.get("protocol")
+    if server:
+        normalized["server"] = server
+        if "protocol" not in normalized and isinstance(server, str):
+            normalized["protocol"] = server.replace("_server", "") if server.endswith("_server") else server
+
+    details_text = str(normalized.get("details") or "")
+    normalized["status"] = _normalize_status(normalized.get("status"), details_text)
+
+    return normalized
+
+
+def _detect_scan(log_entry):
+    src_ip = log_entry.get("src_ip")
+    if not src_ip:
+        return False
+
+    action = (log_entry.get("action") or "").lower()
+    if action not in {"connection", "scan", "probe"}:
+        return False
+
+    timestamp = _parse_iso_timestamp(log_entry.get("timestamp"))
+    now_ts = timestamp.timestamp() if timestamp else time.time()
+
+    activity = _recent_activity_by_src.setdefault(src_ip, deque())
+    activity.append((now_ts, log_entry.get("dest_port"), log_entry.get("protocol")))
+
+    cutoff = now_ts - SCAN_WINDOW_SECONDS
+    while activity and activity[0][0] < cutoff:
+        activity.popleft()
+
+    ports = {item[1] for item in activity if item[1]}
+    protocols = {item[2] for item in activity if item[2]}
+    total_events = len(activity)
+
+    if total_events >= SCAN_EVENT_THRESHOLD:
+        return True
+    if len(ports) >= SCAN_PORT_THRESHOLD:
+        return True
+    if len(protocols) >= SCAN_PROTOCOL_THRESHOLD:
+        return True
+    return False
+
+
+def _classify_log_entry(log_entry):
+    normalized = _normalize_log_entry(log_entry)
+    action = normalized.get("action")
+    status = normalized.get("status")
+
+    if action in {"login", "auth", "authentication", "command"} and status == "success":
+        normalized["status"] = "infiltration"
+        return normalized
+
+    if _detect_scan(normalized) and status not in {"infiltration", "error"}:
+        normalized["status"] = "scan"
+        normalized["action"] = "scan"
+
+    return normalized
 
 
 def _find_authenticated_sid_by_honeypot_id(honeypot_id):
@@ -323,6 +488,8 @@ def handle_honeypot_log(data):
         # Add timestamp if not provided
         if 'timestamp' not in log_entry:
             log_entry['timestamp'] = datetime.now().isoformat()
+
+        log_entry = _classify_log_entry(log_entry)
         
         # Add log to database
         result = db.add_log(uid, honeypot_id, log_entry)
@@ -380,7 +547,9 @@ def handle_batch_honeypot_logs(data):
             # Add timestamp if not provided
             if 'timestamp' not in log_entry:
                 log_entry['timestamp'] = datetime.now().isoformat()
-            
+
+            log_entry = _classify_log_entry(log_entry)
+
             result = db.add_log(uid, honeypot_id, log_entry)
             
             if result['success']:

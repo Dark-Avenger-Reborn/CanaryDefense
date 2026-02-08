@@ -489,6 +489,26 @@ textarea:focus {
     color: #9f1239;
 }
 
+.status-pill.scan {
+    background: rgba(245, 158, 11, 0.18);
+    color: #92400e;
+}
+
+.status-pill.infiltration {
+    background: rgba(225, 29, 72, 0.2);
+    color: #9f1239;
+}
+
+.status-pill.error {
+    background: rgba(239, 68, 68, 0.18);
+    color: #991b1b;
+}
+
+.status-pill.unknown {
+    background: rgba(148, 163, 184, 0.2);
+    color: #475569;
+}
+
 .status-pill.active {
     background: rgba(14, 165, 233, 0.18);
     color: #075985;

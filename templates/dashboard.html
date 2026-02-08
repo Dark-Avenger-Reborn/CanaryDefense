@@ -114,8 +114,8 @@
                             <td>{{ log.src_ip }}</td>
                             <td>{{ log.server }}</td>
                             <td>
-                                <span class="status-pill {% if log.status == 'success' %}success{% else %}failed{% endif %}">
-                                    {{ log.status|upper }}
+                                <span class="status-pill {{ log.status|lower if log.status else 'unknown' }}">
+                                    {{ (log.status or 'unknown')|upper }}
                                 </span>
                             </td>
                         </tr>
@@ -282,8 +282,11 @@
                 const statusCell = document.createElement('td');
                 const statusSpan = document.createElement('span');
                 const statusValue = (log.status || '').toString().toLowerCase();
-                statusSpan.className = `status-pill ${statusValue === 'success' ? 'success' : 'failed'}`;
-                statusSpan.textContent = (log.status || 'N/A').toString().toUpperCase();
+                const statusClass = ['success', 'failed', 'scan', 'infiltration', 'error', 'unknown'].includes(statusValue)
+                    ? statusValue
+                    : 'unknown';
+                statusSpan.className = `status-pill ${statusClass}`;
+                statusSpan.textContent = (log.status || 'unknown').toString().toUpperCase();
                 statusCell.appendChild(statusSpan);
 
                 row.appendChild(timestampCell);
