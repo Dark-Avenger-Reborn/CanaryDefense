@@ -2,3 +2,6 @@
 auth/__pycache__/
 __pycache__/
 database/db.json
+database/db.sqlite
+database/db.sqlite-shm
+database/db.sqlite-wal

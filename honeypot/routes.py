@@ -32,15 +32,10 @@ def create_honeypot():
         description = data.get('description', '')
         
         honeypot_id = str(uuid.uuid4())[:12]
-        result = db.create_honeypot(uid, name, honeypot_id)
+        result = db.create_honeypot(uid, name, honeypot_id, extra_data={"description": description})
         
         if not result['success']:
             return jsonify({'error': result.get('error', 'Failed to create honeypot')}), 400
-        
-        # Update with description
-        db_data = db._load_db()
-        db_data[uid]['honeypots'][honeypot_id]['description'] = description
-        db._save_db(db_data)
         
         return jsonify({
             'success': True,
