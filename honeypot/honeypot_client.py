@@ -1,5 +1,6 @@
 import ast
 import json
+import errno
 import logging
 import os
 import platform
@@ -290,6 +291,31 @@ class HoneypotClient:
         payload = {"honeypot_id": self.honeypot_id, "reason": reason}
         self.sio.emit("honeypot_disconnect", payload)
 
+    def _resolve_protocol_port(self, protocol):
+        class_name, default_port = PROTOCOL_CLASS_MAP.get(protocol, (None, None))
+        if not class_name:
+            return None
+        settings = self.protocol_settings.get(protocol, {})
+        return int(settings.get("port", default_port))
+
+    def _wait_for_port_release(self, port, timeout=3.0, interval=0.2):
+        if not port:
+            return True
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(("0.0.0.0", port))
+                return True
+            except OSError as exc:
+                if exc.errno == errno.EACCES:
+                    return True
+                time.sleep(interval)
+            finally:
+                sock.close()
+        return False
+
     def start_protocols(self, protocols):
         for protocol in protocols:
             self.start_protocol(protocol)
@@ -322,6 +348,9 @@ class HoneypotClient:
             kwargs["config"] = self.honeypots_config_path
 
         try:
+            if not self._wait_for_port_release(port):
+                logger.error("Port %s still in use; skipping start for %s", port, protocol)
+                return
             honeypot = server_class(**kwargs)
             honeypot.run_server(process=True)
             self.honeypots[protocol] = honeypot
@@ -333,8 +362,10 @@ class HoneypotClient:
         honeypot = self.honeypots.get(protocol)
         if not honeypot:
             return
+        port = self._resolve_protocol_port(protocol)
         try:
             honeypot.kill_server()
+            self._wait_for_port_release(port)
             logger.info("Stopped %s honeypot", protocol)
         except Exception as exc:
             logger.error("Failed to stop %s honeypot: %s", protocol, exc)

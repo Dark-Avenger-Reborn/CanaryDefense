@@ -155,7 +155,7 @@
                         log.server,
                         log.status
                     ]|join(' ')|lower }}">
-                        <td>{{ log.timestamp[:19] if log.timestamp else 'N/A' }}</td>
+                        <td class="js-timestamp" data-timestamp="{{ log.timestamp or '' }}">{{ log.timestamp[:19] if log.timestamp else 'N/A' }}</td>
                         <td>{{ log.action }}</td>
                         <td>{{ log.src_ip }}</td>
                         <td>{{ log.src_port }}</td>
@@ -316,11 +316,41 @@
             }
         }
 
-        function formatTimestamp(value) {
+        const timestampFormatter = new Intl.DateTimeFormat(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'medium'
+        });
+
+        function parseTimestamp(value) {
             if (!value) {
+                return null;
+            }
+            const trimmed = value.toString().trim();
+            if (!trimmed) {
+                return null;
+            }
+            const hasTimeZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
+            const isoValue = hasTimeZone ? trimmed : `${trimmed}Z`;
+            const parsed = new Date(isoValue);
+            if (Number.isNaN(parsed.getTime())) {
+                return null;
+            }
+            return parsed;
+        }
+
+        function formatTimestamp(value) {
+            const parsed = parseTimestamp(value);
+            if (!parsed) {
                 return 'N/A';
             }
-            return value.slice(0, 19);
+            return timestampFormatter.format(parsed);
+        }
+
+        function hydrateTimestamps(root = document) {
+            root.querySelectorAll('.js-timestamp').forEach((element) => {
+                const rawValue = element.dataset.timestamp || element.textContent;
+                element.textContent = formatTimestamp(rawValue);
+            });
         }
 
         function updateStats(logs) {
@@ -383,6 +413,8 @@
                 row.setAttribute('data-search', searchData);
 
                 const timestampCell = document.createElement('td');
+                timestampCell.className = 'js-timestamp';
+                timestampCell.dataset.timestamp = log.timestamp || '';
                 timestampCell.textContent = formatTimestamp(log.timestamp);
 
                 const actionCell = document.createElement('td');
@@ -458,6 +490,8 @@
                 console.warn('Logs refresh failed', error);
             }
         }
+
+        hydrateTimestamps();
 
         if (selectedHoneypotId) {
             setInterval(refreshLogs, REFRESH_INTERVAL_MS);

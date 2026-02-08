@@ -80,7 +80,7 @@
                     {% if hp.description %}<p><strong>Description:</strong> {{ hp.description }}</p>{% endif %}
                     <p><strong>Protocols:</strong> {{ hp.active_protocols|join(', ') if hp.active_protocols else 'None' }}</p>
                     <p><strong>Logs:</strong> {{ hp.logs|length }}</p>
-                    <p><strong>Last Active:</strong> {{ hp.last_active[:19] if hp.last_active else 'N/A' }}</p>
+                    <p><strong>Last Active:</strong> <span class="js-timestamp" data-timestamp="{{ hp.last_active or '' }}">{{ hp.last_active[:19] if hp.last_active else 'N/A' }}</span></p>
                     <a href="/logs?honeypot_id={{ hp_id }}"><button class="btn">View Logs</button></a>
                 </div>
                 {% endfor %}
@@ -108,7 +108,7 @@
                     <tbody id="recent-logs-body">
                         {% for log in recent_logs %}
                         <tr>
-                            <td>{{ log.timestamp[:19] if log.timestamp else 'N/A' }}</td>
+                            <td class="js-timestamp" data-timestamp="{{ log.timestamp or '' }}">{{ log.timestamp[:19] if log.timestamp else 'N/A' }}</td>
                             <td>{{ log.honeypot_name }}</td>
                             <td>{{ log.action }}</td>
                             <td>{{ log.src_ip }}</td>
@@ -162,11 +162,41 @@
         let protocolChart = null;
         let statusChart = null;
 
-        function formatTimestamp(value) {
+        const timestampFormatter = new Intl.DateTimeFormat(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'medium'
+        });
+
+        function parseTimestamp(value) {
             if (!value) {
+                return null;
+            }
+            const trimmed = value.toString().trim();
+            if (!trimmed) {
+                return null;
+            }
+            const hasTimeZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
+            const isoValue = hasTimeZone ? trimmed : `${trimmed}Z`;
+            const parsed = new Date(isoValue);
+            if (Number.isNaN(parsed.getTime())) {
+                return null;
+            }
+            return parsed;
+        }
+
+        function formatTimestamp(value) {
+            const parsed = parseTimestamp(value);
+            if (!parsed) {
                 return 'N/A';
             }
-            return value.slice(0, 19);
+            return timestampFormatter.format(parsed);
+        }
+
+        function hydrateTimestamps(root = document) {
+            root.querySelectorAll('.js-timestamp').forEach((element) => {
+                const rawValue = element.dataset.timestamp || element.textContent;
+                element.textContent = formatTimestamp(rawValue);
+            });
         }
 
         function buildProtocolChart(labels, values) {
@@ -436,6 +466,8 @@
         buildProtocolChart({{ protocol_count.keys()|list|tojson }}, {{ protocol_count.values()|list|tojson }});
         {% endif %}
         buildStatusChart({{ scans_count }}, {{ infiltrations_count }});
+
+        hydrateTimestamps();
 
         setInterval(refreshDashboard, REFRESH_INTERVAL_MS);
     </script>
