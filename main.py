@@ -6,10 +6,11 @@ from database.routes import database_bp
 from database.database_communicator import DatabaseCommunicator
 from honeypot.routes import honeypot_bp, honeypot_api_bp
 from honeypot.honeypot_to_db_routes import socketio
+import os
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this-in-production'
-app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
+app.secret_key = os.urandom(24)
+app.config['SECRET_KEY'] = os.urandom(24)
 
 # Initialize extensions
 limiter.init_app(app)
