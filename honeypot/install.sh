@@ -104,7 +104,7 @@ validate_args() {
 
 install_dependencies() {
 	apt-get update -y
-	apt-get install -y python3 python3-venv python3-pip iptables cron wget curl
+	apt-get install -y python3 python3-pip iptables cron wget curl
 }
 
 ensure_user_and_dirs() {
@@ -116,13 +116,11 @@ ensure_user_and_dirs() {
 	chown -R "$HONEYPOT_USER":"$HONEYPOT_USER" "$INSTALL_DIR"
 }
 
-install_python_env() {
-	if [[ ! -d "$INSTALL_DIR/venv" ]]; then
-		runuser -u "$HONEYPOT_USER" -- python3 -m venv "$INSTALL_DIR/venv"
-	fi
-	runuser -u "$HONEYPOT_USER" -- "$INSTALL_DIR/venv/bin/pip" install --upgrade pip
-	runuser -u "$HONEYPOT_USER" -- "$INSTALL_DIR/venv/bin/pip" install \
+install_python_packages() {
+	python3 -m pip install --upgrade pip --break-system-packages
+	python3 -m pip install --break-system-packages \
 		"honeypots==0.36" \
+		"paramiko==3.5.0" \
 		"python-socketio==5.11.4" \
 		"websocket-client==1.9.0" \
 		"twisted==25.5.0"
@@ -151,7 +149,14 @@ download_client_files() {
 
 fix_honeypots_compat() {
 	local helper_path
-	helper_path=$(ls "$INSTALL_DIR"/venv/lib/python*/site-packages/honeypots/helper.py 2>/dev/null | head -n 1 || true)
+	helper_path=$(python3 - <<'PY'
+import importlib.util
+
+spec = importlib.util.find_spec("honeypots.helper")
+if spec and spec.origin:
+	print(spec.origin)
+PY
+)
 	if [[ -z "$helper_path" ]]; then
 		return
 	fi
@@ -298,7 +303,7 @@ $exec_start_pre
 ExecStartPre=/usr/bin/test -f $INSTALL_DIR/config.json
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONNOUSERSITE=1
-ExecStart=$INSTALL_DIR/venv/bin/python -s $INSTALL_DIR/honeypot_client.py
+ExecStart=/usr/bin/python3 -s $INSTALL_DIR/honeypot_client.py
 StandardOutput=append:$INSTALL_DIR/client.log
 StandardError=append:$INSTALL_DIR/client.log
 Restart=on-failure
@@ -313,7 +318,7 @@ EOF
 }
 
 setup_cron() {
-	local cron_line="@reboot PYTHONNOUSERSITE=1 $INSTALL_DIR/venv/bin/python -s $INSTALL_DIR/honeypot_client.py >> $INSTALL_DIR/client.log 2>&1"
+	local cron_line="@reboot PYTHONNOUSERSITE=1 /usr/bin/python3 -s $INSTALL_DIR/honeypot_client.py >> $INSTALL_DIR/client.log 2>&1"
 	(crontab -u "$HONEYPOT_USER" -l 2>/dev/null | grep -v "honeypot_client.py" || true; echo "$cron_line") | crontab -u "$HONEYPOT_USER" -
 
 	if [[ "$MAP_PORTS" = "yes" ]]; then
@@ -341,7 +346,7 @@ main() {
 
 	install_dependencies
 	ensure_user_and_dirs
-	install_python_env
+	install_python_packages
 	fix_honeypots_compat
 	download_client_files
 	write_port_map_script
