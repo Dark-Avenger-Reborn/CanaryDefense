@@ -16,7 +16,7 @@ socketio.init_app(
     app,
     cors_allowed_origins="*",
     manage_session=False,
-    async_mode='threading',
+    async_mode='eventlet',
     engineio_logger=False,
     socketio_logger=False,
     ping_timeout=60,

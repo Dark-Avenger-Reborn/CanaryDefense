@@ -252,7 +252,7 @@ class HoneypotClient:
     def _send_honeypot_connect(self):
         payload = {
             "honeypot_id": self.honeypot_id,
-            "protocols": self.protocols,
+            "protocols": list(self.honeypots.keys()),
             "metadata": {
                 "hostname": socket.gethostname(),
                 "platform": platform.platform(),
@@ -387,7 +387,7 @@ class HoneypotClient:
         self.connect()
         self.start_background_tasks()
         try:
-            while True:
+            while not self.stop_event.is_set():
                 time.sleep(1)
         except KeyboardInterrupt:
             self.shutdown("Keyboard interrupt")

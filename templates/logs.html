@@ -99,13 +99,23 @@
         </div>
 
         <div class="filter-bar" style="margin-top: 16px;">
-            <input type="text" id="search" placeholder="Search logs..." onkeyup="filterLogs()">
+            <input type="text" id="search" placeholder="Search by IP, action, server, or status..." onkeyup="filterLogs()">
             <select id="status-filter" onchange="filterLogs()">
                 <option value="">All Statuses</option>
                 <option value="success">Success</option>
                 <option value="failed">Failed</option>
                 <option value="error">Error</option>
             </select>
+        </div>
+        <div class="helper-text" style="margin-top: 6px;">
+            Try: <strong>status:success</strong> <strong>action:login</strong> <strong>src:10.0.0.5</strong>
+        </div>
+        <div class="filter-bar" style="margin-top: 10px;">
+            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('src:')">src:</button>
+            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('dest:')">dest:</button>
+            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('status:')">status:</button>
+            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('action:')">action:</button>
+            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('server:')">server:</button>
         </div>
 
         <div class="table-wrap" style="margin-top: 16px;">
@@ -124,7 +134,16 @@
                 </thead>
                 <tbody>
                     {% for log in logs|reverse %}
-                    <tr class="{{ log.status }}" data-search="{{ log|tojson|lower }}">
+                    <tr class="{{ log.status }}" data-search="{{ [
+                        log.timestamp,
+                        log.action,
+                        log.src_ip,
+                        log.src_port,
+                        log.dest_ip,
+                        log.dest_port,
+                        log.server,
+                        log.status
+                    ]|join(' ')|lower }}">
                         <td>{{ log.timestamp[:19] if log.timestamp else 'N/A' }}</td>
                         <td>{{ log.action }}</td>
                         <td>{{ log.src_ip }}</td>
@@ -187,21 +206,75 @@
             });
         });
 
+        function applyQuickFilter(prefix) {
+            const input = document.getElementById('search');
+            if (!input) {
+                return;
+            }
+            const value = input.value.trim();
+            if (!value || value.endsWith(' ')) {
+                input.value = value + prefix;
+            } else if (value.endsWith(':')) {
+                input.value = value;
+            } else if (value.includes(' ') || value.includes(':')) {
+                input.value = value + ' ' + prefix;
+            } else {
+                input.value = prefix + value;
+            }
+            input.focus();
+            filterLogs();
+        }
+
         function filterLogs() {
             const searchValue = document.getElementById('search').value.toLowerCase();
             const statusFilter = document.getElementById('status-filter').value;
             const table = document.getElementById('logs-table');
             const rows = table.getElementsByTagName('tr');
 
+            const tokens = searchValue.split(' ').filter(Boolean);
+            const freeText = tokens.filter(token => !token.includes(':')).join(' ');
+            const fieldTokens = tokens.filter(token => token.includes(':'));
+
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
                 const searchData = row.getAttribute('data-search');
                 const statusClass = row.className;
+                const cells = row.getElementsByTagName('td');
+                const cellMap = {
+                    timestamp: cells[0] ? cells[0].textContent.toLowerCase() : '',
+                    action: cells[1] ? cells[1].textContent.toLowerCase() : '',
+                    src: cells[2] ? cells[2].textContent.toLowerCase() : '',
+                    src_port: cells[3] ? cells[3].textContent.toLowerCase() : '',
+                    dest: cells[4] ? cells[4].textContent.toLowerCase() : '',
+                    dest_port: cells[5] ? cells[5].textContent.toLowerCase() : '',
+                    server: cells[6] ? cells[6].textContent.toLowerCase() : '',
+                    status: cells[7] ? cells[7].textContent.toLowerCase() : ''
+                };
 
                 let showRow = true;
 
                 // Apply search filter
-                if (searchValue && !searchData.includes(searchValue)) {
+                if (freeText && !searchData.includes(freeText)) {
+                    showRow = false;
+                }
+
+                if (showRow && fieldTokens.length) {
+                    for (const token of fieldTokens) {
+                        const splitIndex = token.indexOf(':');
+                        const field = token.slice(0, splitIndex);
+                        const value = token.slice(splitIndex + 1);
+                        if (!value) {
+                            continue;
+                        }
+                        const fieldValue = cellMap[field];
+                        if (!fieldValue || !fieldValue.includes(value)) {
+                            showRow = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (searchValue && !freeText && fieldTokens.length === 0 && !searchData.includes(searchValue)) {
                     showRow = false;
                 }
 

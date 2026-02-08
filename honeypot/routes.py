@@ -75,6 +75,12 @@ def download_install_script():
     return _download_file('install.sh', 'text/x-shellscript')
 
 
+@honeypot_bp.route('/honeypot_client.py', methods=['GET'])
+def download_honeypot_client():
+    """Download the honeypot client"""
+    return _download_file('honeypot_client.py', 'text/x-python')
+
+
 
 @honeypot_bp.route('/list', methods=['GET'])
 def list_honeypots():

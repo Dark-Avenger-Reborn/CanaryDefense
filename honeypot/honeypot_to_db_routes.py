@@ -109,7 +109,6 @@ def handle_honeypot_connect(data):
     """
     try:
         honeypot_id = data.get('honeypot_id')
-        protocols = data.get('protocols', [])
         metadata = data.get('metadata', {})
         
         if not honeypot_id:
@@ -124,7 +123,9 @@ def handle_honeypot_connect(data):
             return
         
         current_state = db.get_honeypot(uid, honeypot_id)
-        current_active = current_state.get('honeypot', {}).get('is_active', False) if current_state.get('success') else False
+        current_honeypot = current_state.get('honeypot', {}) if current_state.get('success') else {}
+        current_active = current_honeypot.get('is_active', False)
+        configured_protocols = current_honeypot.get('active_protocols', [])
 
         # Block duplicate live connections for the same honeypot_id
         existing_sid = _find_authenticated_sid_by_honeypot_id(honeypot_id)
@@ -146,9 +147,9 @@ def handle_honeypot_connect(data):
         
         # Update honeypot status to active
         result = db.update_honeypot(
-            uid, 
-            honeypot_id, 
-            protocols=protocols,
+            uid,
+            honeypot_id,
+            protocols=configured_protocols,
             is_active=True,
             last_active=datetime.now().isoformat()
         )
@@ -158,7 +159,12 @@ def handle_honeypot_connect(data):
             room_name = f"honeypot_{honeypot_id}"
             join_room(room_name)
             
-            logger.info(f"Honeypot {honeypot_id} connected for user {uid} with protocols: {protocols}")
+            logger.info(
+                "Honeypot %s connected for user %s with protocols: %s",
+                honeypot_id,
+                uid,
+                configured_protocols,
+            )
             
             # Confirm to the connecting honeypot
             emit('honeypot_connect_ack', {
@@ -167,6 +173,10 @@ def handle_honeypot_connect(data):
                 'message': 'Honeypot connected successfully',
                 'timestamp': datetime.now().isoformat()
             })
+
+            send_stop_command(honeypot_id)
+            if configured_protocols:
+                send_start_command(honeypot_id, configured_protocols)
         else:
             # Remove from authenticated_honeypots if update failed
             authenticated_honeypots.pop(request.sid, None)
