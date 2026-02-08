@@ -48,6 +48,29 @@ class DatabaseCommunicator:
         """
         self.db_file = db_file
         self._ensure_db_exists()
+
+    def _ensure_user_stats(self, user_data):
+        """Ensure user stats exist for cumulative counters."""
+        stats = user_data.get("stats")
+        honeypots = user_data.get("honeypots", {})
+        total_honeypots = len(honeypots)
+        total_logs = sum(len(hp.get("logs", [])) for hp in honeypots.values())
+
+        if not isinstance(stats, dict):
+            user_data["stats"] = {
+                "total_honeypots_created": total_honeypots,
+                "total_logs_captured": total_logs
+            }
+            return
+
+        stats["total_honeypots_created"] = max(
+            stats.get("total_honeypots_created", 0),
+            total_honeypots
+        )
+        stats["total_logs_captured"] = max(
+            stats.get("total_logs_captured", 0),
+            total_logs
+        )
     
     def _ensure_db_exists(self):
         """Create database file if it doesn't exist."""
@@ -94,6 +117,10 @@ class DatabaseCommunicator:
             user_data = {
                 "email": email,
                 "honeypots": {},
+                "stats": {
+                    "total_honeypots_created": 0,
+                    "total_logs_captured": 0
+                },
                 "alerts": {
                     "emails": [email],
                     "preferences": {
@@ -145,8 +172,24 @@ class DatabaseCommunicator:
             db = self._load_db()
             
             if uid in db:
+                self._ensure_user_stats(db[uid])
+                self._save_db(db)
                 return {"success": True, "data": db[uid]}
             return {"success": False, "error": "User not found"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_user_stats(self, uid):
+        """Get cumulative stats for a user."""
+        try:
+            db = self._load_db()
+
+            if uid not in db:
+                return {"success": False, "error": "User not found"}
+
+            self._ensure_user_stats(db[uid])
+            self._save_db(db)
+            return {"success": True, "stats": db[uid]["stats"]}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -160,12 +203,13 @@ class DatabaseCommunicator:
         try:
             db = self._load_db()
             total_users = len(db)
-            total_honeypots = sum(len(user.get("honeypots", {})) for user in db.values())
-            total_logs = sum(
-                len(honeypot.get("logs", []))
-                for user in db.values()
-                for honeypot in user.get("honeypots", {}).values()
-            )
+            total_honeypots = 0
+            total_logs = 0
+            for user in db.values():
+                self._ensure_user_stats(user)
+                stats = user.get("stats", {})
+                total_honeypots += stats.get("total_honeypots_created", 0)
+                total_logs += stats.get("total_logs_captured", 0)
             return {
                 "success": True,
                 "total_users": total_users,
@@ -223,6 +267,8 @@ class DatabaseCommunicator:
             if uid not in db:
                 return {"success": False, "error": "User not found"}
 
+            self._ensure_user_stats(db[uid])
+
             user_honeypot_count = len(db[uid]["honeypots"])
             honeypot_id = honeypot_id or f"hp_{user_honeypot_count + 1:03d}"
 
@@ -236,13 +282,15 @@ class DatabaseCommunicator:
                 "last_active": datetime.now().isoformat(),
                 "active_protocols": protocols or [],
                 "is_active": False,
-                "logs": []
+                "logs": [],
+                "log_clear_at": None
             }
 
             if extra_data:
                 honeypot_data.update(extra_data)
             
             db[uid]["honeypots"][honeypot_id] = honeypot_data
+            db[uid]["stats"]["total_honeypots_created"] += 1
             self._save_db(db)
             return {"success": True, "message": "Honeypot created successfully"}
         except Exception as e:
@@ -264,6 +312,8 @@ class DatabaseCommunicator:
             
             if uid not in db:
                 return {"success": False, "error": "User not found"}
+
+            self._ensure_user_stats(db[uid])
             
             if honeypot_id not in db[uid]["honeypots"]:
                 return {"success": False, "error": "Honeypot not found"}
@@ -380,14 +430,32 @@ class DatabaseCommunicator:
             
             if uid not in db:
                 return {"success": False, "error": "User not found"}
+
+            self._ensure_user_stats(db[uid])
             
             if honeypot_id not in db[uid]["honeypots"]:
                 return {"success": False, "error": "Honeypot not found"}
-            
-            db[uid]["honeypots"][honeypot_id]["logs"].append(log_entry)
+
+            honeypot = db[uid]["honeypots"][honeypot_id]
+            if "timestamp" not in log_entry:
+                log_entry["timestamp"] = datetime.now().isoformat()
+
+            clear_cutoff = honeypot.get("log_clear_at")
+            if clear_cutoff:
+                log_time = self._parse_iso_datetime(log_entry.get("timestamp"))
+                cutoff_time = self._parse_iso_datetime(clear_cutoff)
+                if log_time and cutoff_time and log_time <= cutoff_time:
+                    return {
+                        "success": True,
+                        "ignored": True,
+                        "message": "Log ignored (before clear cutoff)"
+                    }
+
+            honeypot["logs"].append(log_entry)
+            db[uid]["stats"]["total_logs_captured"] += 1
             
             from datetime import datetime
-            db[uid]["honeypots"][honeypot_id]["last_active"] = datetime.now().isoformat()
+            honeypot["last_active"] = datetime.now().isoformat()
             
             self._save_db(db)
             return {"success": True, "message": "Log added successfully"}
@@ -434,15 +502,30 @@ class DatabaseCommunicator:
             
             if uid not in db:
                 return {"success": False, "error": "User not found"}
+
+            self._ensure_user_stats(db[uid])
             
             if honeypot_id not in db[uid]["honeypots"]:
                 return {"success": False, "error": "Honeypot not found"}
-            
+
+            from datetime import datetime
             db[uid]["honeypots"][honeypot_id]["logs"] = []
+            db[uid]["honeypots"][honeypot_id]["log_clear_at"] = datetime.now().isoformat()
             self._save_db(db)
             return {"success": True, "message": "Logs cleared successfully"}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    @staticmethod
+    def _parse_iso_datetime(value):
+        if not value or not isinstance(value, str):
+            return None
+        try:
+            if value.endswith("Z"):
+                value = value[:-1] + "+00:00"
+            return datetime.fromisoformat(value)
+        except Exception:
+            return None
 
     def turn_off_honeypot(self, uid, honeypot_id):
         """

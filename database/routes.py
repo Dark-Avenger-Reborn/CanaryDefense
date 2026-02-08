@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, session, request, redirect, url_for
+from flask import Blueprint, render_template, session, request, redirect, url_for, jsonify
 from database.database_communicator import DatabaseCommunicator
 from auth.extensions import limiter
 from alerts import record_suspicious_activity, notify_honeypot_down
@@ -140,6 +140,30 @@ def logs():
         success=request.args.get('success')
     )
 
+@database_bp.route('/api/honeypots')
+def honeypots_live():
+    if not is_logged_in():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    uid = session.get('uid')
+    result = db.list_honeypots(uid)
+    if not result.get('success'):
+        return jsonify({"success": False, "error": result.get("error", "Failed to load honeypots")}), 400
+
+    honeypots_payload = {}
+    for hp_id, hp in result.get('honeypots', {}).items():
+        honeypots_payload[hp_id] = {
+            "name": hp.get('name', hp_id),
+            "description": hp.get('description'),
+            "is_active": bool(hp.get('is_active')),
+            "active_protocols": hp.get('active_protocols', []),
+            "logs_count": len(hp.get('logs', [])),
+            "last_active": hp.get('last_active'),
+            "created_at": hp.get('created_at')
+        }
+
+    return jsonify({"success": True, "honeypots": honeypots_payload})
+
 @database_bp.route('/logs/<honeypot_id>/clear', methods=['POST'])
 def clear_logs(honeypot_id):
     if not is_logged_in():
@@ -152,6 +176,29 @@ def clear_logs(honeypot_id):
         return redirect(url_for('database.logs', honeypot_id=honeypot_id, success='Logs cleared successfully'))
     else:
         return redirect(url_for('database.logs', honeypot_id=honeypot_id, error=result['error']))
+
+@database_bp.route('/api/logs')
+def logs_live():
+    if not is_logged_in():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    uid = session.get('uid')
+    honeypot_id = request.args.get('honeypot_id')
+    if not honeypot_id:
+        return jsonify({"success": False, "error": "Honeypot id is required"}), 400
+
+    logs_result = db.get_logs(uid, honeypot_id)
+    if not logs_result.get('success'):
+        return jsonify({"success": False, "error": logs_result.get('error', 'Failed to load logs')}), 400
+
+    honeypot_result = db.get_honeypot(uid, honeypot_id)
+    honeypot_data = honeypot_result.get('honeypot') if honeypot_result.get('success') else None
+
+    return jsonify({
+        "success": True,
+        "logs": logs_result.get('logs', []),
+        "honeypot": honeypot_data
+    })
 
 @database_bp.route('/logs/<honeypot_id>/add', methods=['POST'])
 def add_log(honeypot_id):
@@ -178,7 +225,8 @@ def add_log(honeypot_id):
     result = db.add_log(uid, honeypot_id, log_entry)
     
     if result['success']:
-        record_suspicious_activity(uid, honeypot_id, log_entry)
+        if not result.get('ignored'):
+            record_suspicious_activity(uid, honeypot_id, log_entry)
         if request.is_json:
             return {"success": True, "message": "Log added successfully"}
         return redirect(url_for('database.logs', honeypot_id=honeypot_id, success='Log added successfully'))

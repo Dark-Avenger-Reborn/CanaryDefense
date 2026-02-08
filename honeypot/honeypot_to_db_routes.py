@@ -329,15 +329,16 @@ def handle_honeypot_log(data):
         
         if result['success']:
             logger.debug(f"Log added for honeypot {honeypot_id} from user {uid}: {log_entry.get('src_ip')} -> {log_entry.get('protocol')}")
-            
-            # Record suspicious activity for alerting
-            record_suspicious_activity(uid, honeypot_id, log_entry)
+
+            if not result.get('ignored'):
+                record_suspicious_activity(uid, honeypot_id, log_entry)
             
             # Acknowledge receipt to honeypot
             emit('log_ack', {
                 'success': True,
                 'honeypot_id': honeypot_id,
-                'timestamp': log_entry['timestamp']
+                'timestamp': log_entry['timestamp'],
+                'ignored': bool(result.get('ignored'))
             })
         else:
             emit('error', {'message': result.get('error', 'Failed to add log')})
@@ -373,6 +374,7 @@ def handle_batch_honeypot_logs(data):
         
         successful_logs = 0
         failed_logs = 0
+        ignored_logs = 0
         
         for log_entry in logs:
             # Add timestamp if not provided
@@ -382,9 +384,11 @@ def handle_batch_honeypot_logs(data):
             result = db.add_log(uid, honeypot_id, log_entry)
             
             if result['success']:
-                successful_logs += 1
-                # Record suspicious activity
-                record_suspicious_activity(uid, honeypot_id, log_entry)
+                if result.get('ignored'):
+                    ignored_logs += 1
+                else:
+                    successful_logs += 1
+                    record_suspicious_activity(uid, honeypot_id, log_entry)
             else:
                 failed_logs += 1
                 logger.warning(f"Failed to add batch log: {result.get('error')}")
@@ -396,6 +400,7 @@ def handle_batch_honeypot_logs(data):
             'success': True,
             'honeypot_id': honeypot_id,
             'successful': successful_logs,
+            'ignored': ignored_logs,
             'failed': failed_logs,
             'total': len(logs),
             'timestamp': datetime.now().isoformat()

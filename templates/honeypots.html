@@ -63,7 +63,7 @@
         {% if honeypots %}
             <div class="card-list">
                 {% for hp_id, hp in honeypots.items() %}
-                <div class="honeypot-card">
+                <div class="honeypot-card" data-honeypot-id="{{ hp_id }}">
                     <div class="honeypot-header">
                         <div>
                             <h3>{{ hp.name }}</h3>
@@ -77,14 +77,14 @@
                                 <span>Created: {{ hp.created_at[:19] }}</span>
                             </div>
                         </div>
-                        <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}">
+                        <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}" id="hp-status-{{ hp_id }}">
                             {% if hp.is_active %}Active{% else %}Inactive{% endif %}
                         </span>
                     </div>
                     <div class="meta-row">
-                        <span>Last Active: {{ hp.last_active[:19] }}</span>
-                        <span>Protocols: {% if hp.active_protocols %}{{ hp.active_protocols|join(', ') }}{% else %}None{% endif %}</span>
-                        <span>Total Logs: {{ hp.logs|length }}</span>
+                        <span>Last Active: <span id="hp-last-active-{{ hp_id }}">{{ hp.last_active[:19] if hp.last_active else 'N/A' }}</span></span>
+                        <span>Protocols: <span id="hp-protocols-{{ hp_id }}">{% if hp.active_protocols %}{{ hp.active_protocols|join(', ') }}{% else %}None{% endif %}</span></span>
+                        <span>Total Logs: <span id="hp-logs-{{ hp_id }}">{{ hp.logs|length }}</span></span>
                     </div>
                     <div class="honeypot-actions">
                         <button class="btn" type="button" onclick="toggleEdit('{{ hp_id }}')">Edit</button>
@@ -178,6 +178,7 @@
     </div>
 
     <script>
+        const REFRESH_INTERVAL_MS = 4000;
         function toggleEdit(honeypotId) {
             const editForm = document.getElementById('edit-' + honeypotId);
             editForm.classList.toggle('active');
@@ -286,6 +287,69 @@
                 }
             }
         });
+
+        function formatTimestamp(value) {
+            if (!value) {
+                return 'N/A';
+            }
+            return value.slice(0, 19);
+        }
+
+        function getRenderedHoneypotIds() {
+            return Array.from(document.querySelectorAll('[data-honeypot-id]'))
+                .map((element) => element.getAttribute('data-honeypot-id'))
+                .filter(Boolean);
+        }
+
+        function updateHoneypotCard(hpId, hp) {
+            const statusEl = document.getElementById(`hp-status-${hpId}`);
+            if (statusEl) {
+                statusEl.textContent = hp.is_active ? 'Active' : 'Inactive';
+                statusEl.classList.toggle('active', hp.is_active);
+                statusEl.classList.toggle('inactive', !hp.is_active);
+            }
+
+            const lastActiveEl = document.getElementById(`hp-last-active-${hpId}`);
+            if (lastActiveEl) {
+                lastActiveEl.textContent = formatTimestamp(hp.last_active);
+            }
+
+            const protocolsEl = document.getElementById(`hp-protocols-${hpId}`);
+            if (protocolsEl) {
+                const protocols = hp.active_protocols || [];
+                protocolsEl.textContent = protocols.length ? protocols.join(', ') : 'None';
+            }
+
+            const logsEl = document.getElementById(`hp-logs-${hpId}`);
+            if (logsEl) {
+                logsEl.textContent = hp.logs_count ?? 0;
+            }
+        }
+
+        async function refreshHoneypots() {
+            if (document.visibilityState === 'hidden') {
+                return;
+            }
+            try {
+                const response = await fetch('/api/honeypots', { cache: 'no-store' });
+                const payload = await response.json();
+                if (!response.ok || !payload.success) {
+                    return;
+                }
+                const honeypots = payload.honeypots || {};
+                const serverIds = Object.keys(honeypots);
+                const renderedIds = getRenderedHoneypotIds();
+                if (serverIds.length !== renderedIds.length || serverIds.some(id => !renderedIds.includes(id))) {
+                    window.location.reload();
+                    return;
+                }
+                serverIds.forEach((hpId) => updateHoneypotCard(hpId, honeypots[hpId]));
+            } catch (error) {
+                console.warn('Honeypots refresh failed', error);
+            }
+        }
+
+        setInterval(refreshHoneypots, REFRESH_INTERVAL_MS);
 
     </script>
 </body>

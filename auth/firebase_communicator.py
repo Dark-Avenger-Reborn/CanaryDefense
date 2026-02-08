@@ -2,7 +2,10 @@ import pyrebase
 from dotenv import load_dotenv
 import os
 import json
-load_dotenv('../.env')
+from pathlib import Path
+
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(ENV_PATH)
 
 class firebase_auth:
     def _format_error(self, error):

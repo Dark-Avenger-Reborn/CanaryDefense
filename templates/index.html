@@ -37,15 +37,15 @@
 				</div>
 				<div class="hero-stats">
 					<div class="stat-chip">
-						<span class="stat-value">{{ total_accounts }}</span>
+						<span class="stat-value" id="stat-total-accounts">{{ total_accounts }}</span>
 						<span class="stat-label">Operator accounts</span>
 					</div>
 					<div class="stat-chip">
-						<span class="stat-value">{{ total_logs }}</span>
+						<span class="stat-value" id="stat-total-logs">{{ total_logs }}</span>
 						<span class="stat-label">Logs captured</span>
 					</div>
 					<div class="stat-chip accent">
-						<span class="stat-value">{{ total_honeypots }}</span>
+						<span class="stat-value" id="stat-total-honeypots">{{ total_honeypots }}</span>
 						<span class="stat-label">Honeypots deployed</span>
 					</div>
 				</div>
@@ -66,5 +66,38 @@
 			</div>
 		</div>
 	</div>
+
+	<script>
+		const REFRESH_INTERVAL_MS = 4000;
+		const statAccounts = document.getElementById('stat-total-accounts');
+		const statLogs = document.getElementById('stat-total-logs');
+		const statHoneypots = document.getElementById('stat-total-honeypots');
+
+		async function refreshPublicCounts() {
+			if (document.visibilityState === 'hidden') {
+				return;
+			}
+			try {
+				const response = await fetch('/api/public_counts', { cache: 'no-store' });
+				const payload = await response.json();
+				if (!response.ok || !payload.success) {
+					return;
+				}
+				if (statAccounts) {
+					statAccounts.textContent = payload.total_accounts ?? 0;
+				}
+				if (statLogs) {
+					statLogs.textContent = payload.total_logs ?? 0;
+				}
+				if (statHoneypots) {
+					statHoneypots.textContent = payload.total_honeypots ?? 0;
+				}
+			} catch (error) {
+				console.warn('Public count refresh failed', error);
+			}
+		}
+
+		setInterval(refreshPublicCounts, REFRESH_INTERVAL_MS);
+	</script>
 </body>
 </html>

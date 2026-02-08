@@ -35,23 +35,23 @@
         <div class="stats">
             <div class="stat-card cool">
                 <h3>Total Honeypots</h3>
-                <p>{{ total_honeypots }}</p>
+                <p id="stat-total-honeypots">{{ total_honeypots }}</p>
             </div>
             <div class="stat-card">
                 <h3>Active Honeypots</h3>
-                <p>{{ active_honeypots }}</p>
+                <p id="stat-active-honeypots">{{ active_honeypots }}</p>
             </div>
             <div class="stat-card accent">
                 <h3>Total Logs</h3>
-                <p>{{ total_logs }}</p>
+                <p id="stat-total-logs">{{ total_logs }}</p>
             </div>
             <div class="stat-card cool">
                 <h3>Scans Detected</h3>
-                <p>{{ scans_count }}</p>
+                <p id="stat-scans-count">{{ scans_count }}</p>
             </div>
             <div class="stat-card accent">
                 <h3>Infiltrations</h3>
-                <p>{{ infiltrations_count }}</p>
+                <p id="stat-infiltrations-count">{{ infiltrations_count }}</p>
             </div>
         </div>
 
@@ -72,7 +72,7 @@
                 <h2>Honeypots Overview</h2>
                 <p>Quick status scan across your deployed nodes.</p>
             </div>
-            <div class="honeypot-grid">
+            <div class="honeypot-grid" id="honeypot-grid">
                 {% for hp_id, hp in honeypots.items() %}
                 <div class="card">
                     <h3>{{ hp.name }} <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}">{% if hp.is_active %}Active{% else %}Inactive{% endif %}</span></h3>
@@ -105,7 +105,7 @@
                             <th>Status</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="recent-logs-body">
                         {% for log in recent_logs %}
                         <tr>
                             <td>{{ log.timestamp[:19] if log.timestamp else 'N/A' }}</td>
@@ -138,68 +138,303 @@
     </div>
 
     <script>
-        // Protocol Distribution Chart
-        {% if protocol_count %}
-        const protocolCtx = document.getElementById('protocolChart').getContext('2d');
-        new Chart(protocolCtx, {
-            type: 'doughnut',
-            data: {
-                labels: {{ protocol_count.keys()|list|tojson }},
-                datasets: [{
-                    data: {{ protocol_count.values()|list|tojson }},
-                    backgroundColor: [
-                        '#0f766e',
-                        '#0ea5e9',
-                        '#f59e0b',
-                        '#e11d48',
-                        '#14b8a6',
-                        '#94a3b8'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
-        {% endif %}
+        const REFRESH_INTERVAL_MS = 4000;
+        const protocolColors = [
+            '#0f766e',
+            '#0ea5e9',
+            '#f59e0b',
+            '#e11d48',
+            '#14b8a6',
+            '#94a3b8'
+        ];
 
-        // Attack Type Distribution Chart
-        const statusCtx = document.getElementById('statusChart').getContext('2d');
-        new Chart(statusCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Scans', 'Infiltrations'],
-                datasets: [{
-                    label: 'Number of Events',
-                    data: [{{ scans_count }}, {{ infiltrations_count }}],
-                    backgroundColor: [
-                        '#f59e0b',
-                        '#e11d48'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+        const statElements = {
+            totalHoneypots: document.getElementById('stat-total-honeypots'),
+            activeHoneypots: document.getElementById('stat-active-honeypots'),
+            totalLogs: document.getElementById('stat-total-logs'),
+            scansCount: document.getElementById('stat-scans-count'),
+            infiltrationsCount: document.getElementById('stat-infiltrations-count')
+        };
+
+        const recentLogsBody = document.getElementById('recent-logs-body');
+        const honeypotGrid = document.getElementById('honeypot-grid');
+
+        let protocolChart = null;
+        let statusChart = null;
+
+        function formatTimestamp(value) {
+            if (!value) {
+                return 'N/A';
+            }
+            return value.slice(0, 19);
+        }
+
+        function buildProtocolChart(labels, values) {
+            const protocolCanvas = document.getElementById('protocolChart');
+            if (!protocolCanvas || labels.length === 0) {
+                return;
+            }
+            const protocolCtx = protocolCanvas.getContext('2d');
+            if (protocolChart) {
+                protocolChart.destroy();
+            }
+            protocolChart = new Chart(protocolCtx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: labels.map((_, idx) => protocolColors[idx % protocolColors.length])
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
                         }
                     }
+                }
+            });
+        }
+
+        function updateProtocolChart(labels, values) {
+            if (!protocolChart) {
+                buildProtocolChart(labels, values);
+                return;
+            }
+            protocolChart.data.labels = labels;
+            protocolChart.data.datasets[0].data = values;
+            protocolChart.data.datasets[0].backgroundColor = labels.map((_, idx) => protocolColors[idx % protocolColors.length]);
+            protocolChart.update();
+        }
+
+        function buildStatusChart(scansCount, infiltrationsCount) {
+            const statusCanvas = document.getElementById('statusChart');
+            if (!statusCanvas) {
+                return;
+            }
+            const statusCtx = statusCanvas.getContext('2d');
+            if (statusChart) {
+                statusChart.destroy();
+            }
+            statusChart = new Chart(statusCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Scans', 'Infiltrations'],
+                    datasets: [{
+                        label: 'Number of Events',
+                        data: [scansCount, infiltrationsCount],
+                        backgroundColor: ['#f59e0b', '#e11d48']
+                    }]
                 },
-                plugins: {
-                    legend: {
-                        display: false
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
                     }
                 }
+            });
+        }
+
+        function updateStatusChart(scansCount, infiltrationsCount) {
+            if (!statusChart) {
+                buildStatusChart(scansCount, infiltrationsCount);
+                return;
             }
-        });
+            statusChart.data.datasets[0].data = [scansCount, infiltrationsCount];
+            statusChart.update();
+        }
+
+        function renderRecentLogs(logs) {
+            if (!recentLogsBody) {
+                return;
+            }
+            recentLogsBody.innerHTML = '';
+            logs.forEach((log) => {
+                const row = document.createElement('tr');
+
+                const timestampCell = document.createElement('td');
+                timestampCell.textContent = formatTimestamp(log.timestamp);
+
+                const honeypotCell = document.createElement('td');
+                honeypotCell.textContent = log.honeypot_name || log.honeypot_id || 'Unknown';
+
+                const actionCell = document.createElement('td');
+                actionCell.textContent = log.action || 'N/A';
+
+                const sourceCell = document.createElement('td');
+                sourceCell.textContent = log.src_ip || 'N/A';
+
+                const serverCell = document.createElement('td');
+                serverCell.textContent = log.server || 'N/A';
+
+                const statusCell = document.createElement('td');
+                const statusSpan = document.createElement('span');
+                const statusValue = (log.status || '').toString().toLowerCase();
+                statusSpan.className = `status-pill ${statusValue === 'success' ? 'success' : 'failed'}`;
+                statusSpan.textContent = (log.status || 'N/A').toString().toUpperCase();
+                statusCell.appendChild(statusSpan);
+
+                row.appendChild(timestampCell);
+                row.appendChild(honeypotCell);
+                row.appendChild(actionCell);
+                row.appendChild(sourceCell);
+                row.appendChild(serverCell);
+                row.appendChild(statusCell);
+
+                recentLogsBody.appendChild(row);
+            });
+        }
+
+        function renderHoneypots(honeypots) {
+            if (!honeypotGrid) {
+                return;
+            }
+            honeypotGrid.innerHTML = '';
+            honeypots.forEach((hp) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                const title = document.createElement('h3');
+                const statusSpan = document.createElement('span');
+                statusSpan.className = `status-pill ${hp.is_active ? 'active' : 'inactive'}`;
+                statusSpan.textContent = hp.is_active ? 'Active' : 'Inactive';
+                title.textContent = `${hp.name} `;
+                title.appendChild(statusSpan);
+
+                const idLine = document.createElement('p');
+                const idLabel = document.createElement('strong');
+                idLabel.textContent = 'ID:';
+                idLine.appendChild(idLabel);
+                idLine.appendChild(document.createTextNode(` ${hp.honeypot_id}`));
+
+                let descriptionLine = null;
+                if (hp.description) {
+                    descriptionLine = document.createElement('p');
+                    const descriptionLabel = document.createElement('strong');
+                    descriptionLabel.textContent = 'Description:';
+                    descriptionLine.appendChild(descriptionLabel);
+                    descriptionLine.appendChild(document.createTextNode(` ${hp.description}`));
+                }
+
+                const protocolsLine = document.createElement('p');
+                const protocolsLabel = document.createElement('strong');
+                protocolsLabel.textContent = 'Protocols:';
+                const protocolValue = hp.active_protocols && hp.active_protocols.length
+                    ? hp.active_protocols.join(', ')
+                    : 'None';
+                protocolsLine.appendChild(protocolsLabel);
+                protocolsLine.appendChild(document.createTextNode(` ${protocolValue}`));
+
+                const logsLine = document.createElement('p');
+                const logsLabel = document.createElement('strong');
+                logsLabel.textContent = 'Logs:';
+                logsLine.appendChild(logsLabel);
+                logsLine.appendChild(document.createTextNode(` ${hp.logs_count}`));
+
+                const lastActiveLine = document.createElement('p');
+                const lastActiveLabel = document.createElement('strong');
+                lastActiveLabel.textContent = 'Last Active:';
+                lastActiveLine.appendChild(lastActiveLabel);
+                lastActiveLine.appendChild(document.createTextNode(` ${formatTimestamp(hp.last_active)}`));
+
+                const logsLink = document.createElement('a');
+                logsLink.href = `/logs?honeypot_id=${hp.honeypot_id}`;
+                const logsButton = document.createElement('button');
+                logsButton.className = 'btn';
+                logsButton.textContent = 'View Logs';
+                logsLink.appendChild(logsButton);
+
+                card.appendChild(title);
+                card.appendChild(idLine);
+                if (descriptionLine) {
+                    card.appendChild(descriptionLine);
+                }
+                card.appendChild(protocolsLine);
+                card.appendChild(logsLine);
+                card.appendChild(lastActiveLine);
+                card.appendChild(logsLink);
+
+                honeypotGrid.appendChild(card);
+            });
+        }
+
+        async function refreshDashboard() {
+            if (document.visibilityState === 'hidden') {
+                return;
+            }
+            try {
+                const response = await fetch('/api/dashboard', { cache: 'no-store' });
+                const payload = await response.json();
+                if (!response.ok || !payload.success) {
+                    return;
+                }
+
+                const stats = payload.stats || {};
+                if (statElements.totalHoneypots) {
+                    statElements.totalHoneypots.textContent = stats.total_honeypots ?? 0;
+                }
+                if (statElements.activeHoneypots) {
+                    statElements.activeHoneypots.textContent = stats.active_honeypots ?? 0;
+                }
+                if (statElements.totalLogs) {
+                    statElements.totalLogs.textContent = stats.total_logs ?? 0;
+                }
+                if (statElements.scansCount) {
+                    statElements.scansCount.textContent = stats.scans_count ?? 0;
+                }
+                if (statElements.infiltrationsCount) {
+                    statElements.infiltrationsCount.textContent = stats.infiltrations_count ?? 0;
+                }
+
+                const protocolCount = payload.protocol_count || {};
+                const protocolLabels = Object.keys(protocolCount);
+                const protocolValues = Object.values(protocolCount);
+                if (protocolLabels.length) {
+                    updateProtocolChart(protocolLabels, protocolValues);
+                }
+                updateStatusChart(stats.scans_count ?? 0, stats.infiltrations_count ?? 0);
+
+                const recentLogs = Array.isArray(payload.recent_logs) ? payload.recent_logs : [];
+                const honeypots = Array.isArray(payload.honeypots) ? payload.honeypots : [];
+
+                if (!recentLogsBody && recentLogs.length) {
+                    window.location.reload();
+                    return;
+                }
+                if (!honeypotGrid && honeypots.length) {
+                    window.location.reload();
+                    return;
+                }
+                if (honeypotGrid && honeypots.length === 0) {
+                    window.location.reload();
+                    return;
+                }
+
+                renderRecentLogs(recentLogs);
+                renderHoneypots(honeypots);
+            } catch (error) {
+                console.warn('Dashboard refresh failed', error);
+            }
+        }
+
+        {% if protocol_count %}
+        buildProtocolChart({{ protocol_count.keys()|list|tojson }}, {{ protocol_count.values()|list|tojson }});
+        {% endif %}
+        buildStatusChart({{ scans_count }}, {{ infiltrations_count }});
+
+        setInterval(refreshDashboard, REFRESH_INTERVAL_MS);
     </script>
 </body>
 </html>

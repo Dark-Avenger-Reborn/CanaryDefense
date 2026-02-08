@@ -1,4 +1,4 @@
-from flask import Flask, render_template, session, redirect, url_for
+from flask import Flask, render_template, session, redirect, url_for, jsonify
 from pathlib import Path
 from auth.routes import auth_bp, is_logged_in
 from auth.extensions import limiter
@@ -57,7 +57,9 @@ def index():
         honeypots_data = honeypots_result.get('honeypots', {}) if honeypots_result['success'] else {}
         
         # Calculate statistics
-        total_honeypots = len(honeypots_data)
+        stats_result = db.get_user_stats(uid)
+        stats = stats_result.get('stats', {}) if stats_result['success'] else {}
+        total_honeypots = stats.get('total_honeypots_created', 0)
         active_honeypots = sum(1 for hp in honeypots_data.values() if hp.get('is_active', False))
         total_logs = sum(len(hp.get('logs', [])) for hp in honeypots_data.values())
         
@@ -100,6 +102,75 @@ def index():
         total_honeypots=counts.get('total_honeypots', 0),
         total_logs=counts.get('total_logs', 0)
     )
+
+@app.route('/api/public_counts')
+def public_counts():
+    counts = db.get_global_counts()
+    if not counts.get('success'):
+        return jsonify({"success": False, "error": counts.get("error", "Unknown error")}), 500
+    return jsonify({
+        "success": True,
+        "total_accounts": counts.get('total_users', 0),
+        "total_honeypots": counts.get('total_honeypots', 0),
+        "total_logs": counts.get('total_logs', 0)
+    })
+
+@app.route('/api/dashboard')
+def dashboard_data():
+    if not is_logged_in():
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    uid = session.get('uid')
+    honeypots_result = db.list_honeypots(uid)
+    honeypots_data = honeypots_result.get('honeypots', {}) if honeypots_result['success'] else {}
+    stats_result = db.get_user_stats(uid)
+    stats = stats_result.get('stats', {}) if stats_result['success'] else {}
+
+    total_honeypots = stats.get('total_honeypots_created', 0)
+    active_honeypots = sum(1 for hp in honeypots_data.values() if hp.get('is_active', False))
+    total_logs = sum(len(hp.get('logs', [])) for hp in honeypots_data.values())
+
+    all_logs = []
+    protocol_count = {}
+    honeypot_cards = []
+
+    for hp_id, hp in honeypots_data.items():
+        honeypot_cards.append({
+            "honeypot_id": hp_id,
+            "name": hp.get('name', hp_id),
+            "description": hp.get('description'),
+            "is_active": bool(hp.get('is_active')),
+            "active_protocols": hp.get('active_protocols', []),
+            "logs_count": len(hp.get('logs', [])),
+            "last_active": hp.get('last_active')
+        })
+        for protocol in hp.get('active_protocols', []):
+            protocol_count[protocol] = protocol_count.get(protocol, 0) + 1
+        for log in hp.get('logs', []):
+            log_copy = dict(log)
+            log_copy['honeypot_id'] = hp_id
+            log_copy['honeypot_name'] = hp.get('name', hp_id)
+            all_logs.append(log_copy)
+
+    all_logs.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+    recent_logs = all_logs[:10]
+
+    scans_count = sum(1 for log in all_logs if log.get('status') == 'scan')
+    infiltrations_count = sum(1 for log in all_logs if log.get('status') == 'infiltration')
+
+    return jsonify({
+        "success": True,
+        "stats": {
+            "total_honeypots": total_honeypots,
+            "active_honeypots": active_honeypots,
+            "total_logs": total_logs,
+            "scans_count": scans_count,
+            "infiltrations_count": infiltrations_count
+        },
+        "protocol_count": protocol_count,
+        "recent_logs": recent_logs,
+        "honeypots": honeypot_cards
+    })
 
 @app.route('/settings')
 def settings():
