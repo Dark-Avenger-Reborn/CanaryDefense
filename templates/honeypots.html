@@ -67,6 +67,11 @@
                     <div class="honeypot-header">
                         <div>
                             <h3>{{ hp.name }}</h3>
+                            {% if hp.description %}
+                            <div class="honeypot-description">
+                                <strong>Description:</strong> {{ hp.description }}
+                            </div>
+                            {% endif %}
                             <div class="meta-row">
                                 <span>ID: {{ hp_id }}</span>
                                 <span>Created: {{ hp.created_at[:19] }}</span>
@@ -77,7 +82,6 @@
                         </span>
                     </div>
                     <div class="meta-row">
-                        {% if hp.description %}<span>Description: {{ hp.description }}</span>{% endif %}
                         <span>Last Active: {{ hp.last_active[:19] }}</span>
                         <span>Protocols: {% if hp.active_protocols %}{{ hp.active_protocols|join(', ') }}{% else %}None{% endif %}</span>
                         <span>Total Logs: {{ hp.logs|length }}</span>

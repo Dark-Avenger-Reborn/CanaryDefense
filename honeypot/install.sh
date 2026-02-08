@@ -124,9 +124,6 @@ install_python_env() {
 	runuser -u "$HONEYPOT_USER" -- "$INSTALL_DIR/venv/bin/pip" install \
 		"honeypots==0.36" \
 		"python-socketio==5.11.4" \
-		"python-engineio==4.9.1" \
-		"simple-websocket==1.0.0" \
-		"requests==2.31.0" \
 		"websocket-client==1.9.0"
 }
 
