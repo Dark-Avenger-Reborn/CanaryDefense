@@ -1,4 +1,5 @@
 from flask import Flask, render_template, session, redirect, url_for
+from pathlib import Path
 from auth.routes import auth_bp, is_logged_in
 from auth.extensions import limiter
 from database.routes import database_bp
@@ -30,6 +31,20 @@ app.register_blueprint(honeypot_bp)
 app.register_blueprint(honeypot_api_bp)
 
 db = DatabaseCommunicator()
+BRAND_NAME_FILE = Path("config/brand_name.txt")
+
+
+def load_brand_name():
+    try:
+        name = BRAND_NAME_FILE.read_text(encoding="utf-8").strip()
+        return name or "Honeypot Control"
+    except FileNotFoundError:
+        return "Honeypot Control"
+
+
+@app.context_processor
+def inject_brand_name():
+    return {"brand_name": load_brand_name()}
 
 
 @app.route('/')
@@ -78,7 +93,13 @@ def index():
                              protocol_count=protocol_count,
                              scans_count=scans_count,
                              infiltrations_count=infiltrations_count)
-    return render_template('index.html')
+    counts = db.get_global_counts()
+    return render_template(
+        'index.html',
+        total_accounts=counts.get('total_users', 0),
+        total_honeypots=counts.get('total_honeypots', 0),
+        total_logs=counts.get('total_logs', 0)
+    )
 
 @app.route('/settings')
 def settings():

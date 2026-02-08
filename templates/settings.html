@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Settings</title>
+    <title>Settings - {{ brand_name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body class="page">
@@ -11,7 +11,7 @@
                 <div class="brand-mark" aria-hidden="true"></div>
                 <div>
                     <h1>Account settings</h1>
-                    <p>Manage identity, access, and notifications.</p>
+                    <p>Manage identity, access, and notifications for {{ brand_name }}.</p>
                 </div>
             </div>
             <div class="nav">

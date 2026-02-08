@@ -149,6 +149,31 @@ class DatabaseCommunicator:
             return {"success": False, "error": "User not found"}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def get_global_counts(self):
+        """
+        Get global counts across all users.
+
+        Returns:
+            dict: Total user count, honeypot count, and log count
+        """
+        try:
+            db = self._load_db()
+            total_users = len(db)
+            total_honeypots = sum(len(user.get("honeypots", {})) for user in db.values())
+            total_logs = sum(
+                len(honeypot.get("logs", []))
+                for user in db.values()
+                for honeypot in user.get("honeypots", {}).values()
+            )
+            return {
+                "success": True,
+                "total_users": total_users,
+                "total_honeypots": total_honeypots,
+                "total_logs": total_logs
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     def update_user_alerts(self, uid, emails, preferences):
         """

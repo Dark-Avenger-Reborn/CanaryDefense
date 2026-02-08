@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Honeypot System</title>
+    <title>Dashboard - {{ brand_name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -14,7 +14,7 @@
                 <div class="brand-mark" aria-hidden="true"></div>
                 <div>
                     <h1>Dashboard</h1>
-                    <p>Live system posture and activity.</p>
+                    <p>Live system posture and activity for {{ brand_name }}.</p>
                 </div>
             </div>
             <div class="nav">

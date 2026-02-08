@@ -256,7 +256,7 @@ class firebase_auth:
             dict: Success status
         """
         try:
-            self.auth.update_user_profile(id_token, display_name=new_username)
+            self.auth.update_profile(id_token, display_name=new_username)
             return {"success": True, "message": "Username changed successfully"}
         except Exception as e:
             return {"success": False, "error": self._format_error(e)}
