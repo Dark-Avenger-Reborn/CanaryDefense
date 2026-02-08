@@ -119,11 +119,10 @@ ensure_user_and_dirs() {
 install_python_packages() {
 	python3 -m pip install --upgrade pip --break-system-packages
 	python3 -m pip install --break-system-packages \
-		"honeypots==0.36" \
-		"paramiko==3.5.0" \
-		"python-socketio==5.11.4" \
-		"websocket-client==1.9.0" \
-		"twisted==25.5.0"
+		"honeypots" \
+		"python-socketio" \
+		"websocket-client" \
+		"twisted"
 }
 
 download_client_files() {
