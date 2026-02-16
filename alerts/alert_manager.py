@@ -12,6 +12,7 @@ import html
 import os
 import threading
 import time
+from datetime import datetime
 from typing import Dict, List, Tuple
 
 from database.database_communicator import DatabaseCommunicator
@@ -27,6 +28,26 @@ _pending: Dict[Tuple[str, str], Dict[str, object]] = {}
 _pending_lock = threading.Lock()
 
 
+def _format_timestamp(iso_timestamp: str) -> str:
+    """
+    Convert ISO timestamp to human-readable local time format.
+    
+    Args:
+        iso_timestamp: Timestamp in ISO format
+        
+    Returns:
+        Formatted timestamp string in local time (e.g., "Feb 16, 2026 14:30:45")
+    """
+    try:
+        dt = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
+        # Convert to local time if timestamp has timezone info
+        if dt.tzinfo is not None:
+            dt = dt.astimezone()
+        return dt.strftime("%b %d, %Y %H:%M:%S")
+    except (ValueError, AttributeError):
+        return iso_timestamp  # Return original if parsing fails
+
+
 def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
     user = _db.get_user_entry(uid)
     user_email = user.get("data", {}).get("email") if user.get("success") else "unknown"
@@ -38,11 +59,13 @@ def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
         ""
     ]
     for log in logs:
+        timestamp_raw = log.get('timestamp', 'n/a')
+        timestamp_formatted = _format_timestamp(timestamp_raw) if timestamp_raw != 'n/a' else 'n/a'
         lines.append(
             " - "
             + " | ".join(
                 [
-                    f"timestamp={log.get('timestamp', 'n/a')}",
+                    f"timestamp={timestamp_formatted}",
                     f"src_ip={log.get('src_ip', log.get('source_ip', 'n/a'))}",
                     f"dest_ip={log.get('dest_ip', log.get('destination_ip', 'n/a'))}",
                     f"protocol={log.get('protocol', log.get('server', 'n/a'))}",
@@ -63,11 +86,13 @@ def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
 
     rows = []
     for log in logs:
+        timestamp_raw = log.get('timestamp', 'n/a')
+        timestamp_formatted = _format_timestamp(timestamp_raw) if timestamp_raw != 'n/a' else 'n/a'
         rows.append(
             "".join(
                 [
                     "<tr>",
-                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('timestamp', 'n/a')))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(timestamp_formatted))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('src_ip', log.get('source_ip', 'n/a'))))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('dest_ip', log.get('destination_ip', 'n/a'))))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('protocol', log.get('server', 'n/a'))))}</td>",
