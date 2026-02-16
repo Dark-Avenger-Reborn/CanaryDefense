@@ -21,8 +21,8 @@
                 <a href="/">Dashboard</a>
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
+                <a href="/alerts/config">Alerts</a>
                 <a href="/settings">Settings</a>
-                <a href="/alerts/config">Alert Config</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
         </div>
@@ -33,23 +33,19 @@
         </div>
 
         <div class="stats">
-            <div class="stat-card cool">
-                <h3>Total Honeypots</h3>
+            <div class="stat-card">
+                <h3>Honeypots</h3>
                 <p id="stat-total-honeypots">{{ total_honeypots }}</p>
             </div>
             <div class="stat-card">
-                <h3>Active Honeypots</h3>
+                <h3>Active</h3>
                 <p id="stat-active-honeypots">{{ active_honeypots }}</p>
             </div>
-            <div class="stat-card accent">
+            <div class="stat-card">
                 <h3>Total Logs</h3>
                 <p id="stat-total-logs">{{ total_logs }}</p>
             </div>
-            <div class="stat-card cool">
-                <h3>Scans Detected</h3>
-                <p id="stat-scans-count">{{ scans_count }}</p>
-            </div>
-            <div class="stat-card accent">
+            <div class="stat-card">
                 <h3>Infiltrations</h3>
                 <p id="stat-infiltrations-count">{{ infiltrations_count }}</p>
             </div>
@@ -75,13 +71,16 @@
             <div class="honeypot-grid" id="honeypot-grid">
                 {% for hp_id, hp in honeypots.items() %}
                 <div class="card">
-                    <h3>{{ hp.name }} <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}">{% if hp.is_active %}Active{% else %}Inactive{% endif %}</span></h3>
-                    <p><strong>ID:</strong> {{ hp_id }}</p>
-                    {% if hp.description %}<p><strong>Description:</strong> {{ hp.description }}</p>{% endif %}
-                    <p><strong>Protocols:</strong> {{ hp.active_protocols|join(', ') if hp.active_protocols else 'None' }}</p>
-                    <p><strong>Logs:</strong> {{ hp.logs|length }}</p>
-                    <p><strong>Last Active:</strong> <span class="js-timestamp" data-timestamp="{{ hp.last_active or '' }}">{{ hp.last_active[:19] if hp.last_active else 'N/A' }}</span></p>
-                    <a href="/logs?honeypot_id={{ hp_id }}"><button class="btn">View Logs</button></a>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                        <h3 style="font-size: 1.2rem;">{{ hp.name }}</h3>
+                        <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}">{% if hp.is_active %}Active{% else %}Inactive{% endif %}</span>
+                    </div>
+                    {% if hp.description %}<p style="color: var(--muted); margin-bottom: 10px;">{{ hp.description }}</p>{% endif %}
+                    <div class="meta-row">
+                        <span><strong>Protocols:</strong> {{ hp.active_protocols|join(', ') if hp.active_protocols else 'None' }}</span>
+                        <span><strong>Logs:</strong> {{ hp.logs|length }}</span>
+                    </div>
+                    <a href="/logs?honeypot_id={{ hp_id }}"><button class="btn" style="margin-top: 16px;">View Logs</button></a>
                 </div>
                 {% endfor %}
             </div>

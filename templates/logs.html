@@ -20,8 +20,8 @@
                 <a href="/">Dashboard</a>
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
+                <a href="/alerts/config">Alerts</a>
                 <a href="/settings">Settings</a>
-                <a href="/alerts/config">Alert Config</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
         </div>
@@ -79,26 +79,18 @@
         </div>
 
         {% if logs %}
-        <div class="stats" style="margin-top: 18px;">
+        <div class="stats">
             <div class="stat-card">
                 <h3>Total Logs</h3>
                 <p id="stat-total-logs">{{ logs|length }}</p>
             </div>
             <div class="stat-card">
-                <h3>Successful Actions</h3>
-                <p id="stat-success-logs">{{ logs|selectattr('status', 'equalto', 'success')|list|length }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>Failed Actions</h3>
-                <p id="stat-failed-logs">{{ logs|selectattr('status', 'equalto', 'failed')|list|length }}</p>
+                <h3>Infiltrations</h3>
+                <p id="stat-infiltration-logs">{{ logs|selectattr('status', 'equalto', 'infiltration')|list|length }}</p>
             </div>
             <div class="stat-card">
                 <h3>Scans</h3>
                 <p id="stat-scan-logs">{{ logs|selectattr('status', 'equalto', 'scan')|list|length }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>Infiltrations</h3>
-                <p id="stat-infiltration-logs">{{ logs|selectattr('status', 'equalto', 'infiltration')|list|length }}</p>
             </div>
             <div class="stat-card">
                 <h3>Unique IPs</h3>
@@ -106,30 +98,25 @@
             </div>
         </div>
 
-        <div class="filter-bar" style="margin-top: 16px;">
-            <input type="text" id="search" placeholder="Search by IP, action, server, or status..." onkeyup="filterLogs()">
-            <select id="status-filter" onchange="filterLogs()">
-                <option value="">All Statuses</option>
-                <option value="success">Success</option>
-                <option value="failed">Failed</option>
-                <option value="scan">Scan</option>
-                <option value="infiltration">Infiltration</option>
-                <option value="error">Error</option>
-                <option value="unknown">Unknown</option>
-            </select>
-        </div>
-        <div class="helper-text" style="margin-top: 6px;">
-            Try: <strong>status:success</strong> <strong>action:login</strong> <strong>src:10.0.0.5</strong>
-        </div>
-        <div class="filter-bar" style="margin-top: 10px;">
-            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('src:')">src:</button>
-            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('dest:')">dest:</button>
-            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('status:')">status:</button>
-            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('action:')">action:</button>
-            <button class="btn btn-ghost" type="button" onclick="applyQuickFilter('server:')">server:</button>
+        <div class="card">
+            <div class="filter-bar">
+                <input type="text" id="search" placeholder="Search by IP, action, server, or status..." onkeyup="filterLogs()">
+                <select id="status-filter" onchange="filterLogs()">
+                    <option value="">All Statuses</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                    <option value="scan">Scan</option>
+                    <option value="infiltration">Infiltration</option>
+                    <option value="error">Error</option>
+                    <option value="unknown">Unknown</option>
+                </select>
+            </div>
+            <div class="helper-text" style="margin-top: 12px;">
+                Use filters like <strong>status:success</strong>, <strong>action:login</strong>, or <strong>src:10.0.0.5</strong>
+            </div>
         </div>
 
-        <div class="table-wrap" style="margin-top: 16px;">
+        <div class="table-wrap">
             <table class="logs-table" id="logs-table">
                 <thead>
                     <tr>

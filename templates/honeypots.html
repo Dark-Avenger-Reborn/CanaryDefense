@@ -20,8 +20,8 @@
                 <a href="/">Dashboard</a>
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
+                <a href="/alerts/config">Alerts</a>
                 <a href="/settings">Settings</a>
-                <a href="/alerts/config">Alert Config</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
         </div>
@@ -68,23 +68,16 @@
                         <div>
                             <h3>{{ hp.name }}</h3>
                             {% if hp.description %}
-                            <div class="honeypot-description">
-                                <strong>Description:</strong> {{ hp.description }}
-                            </div>
+                            <p style="color: var(--muted); margin-top: 6px;">{{ hp.description }}</p>
                             {% endif %}
-                            <div class="meta-row">
-                                <span>ID: {{ hp_id }}</span>
-                                <span>Created: <span class="js-timestamp" data-timestamp="{{ hp.created_at or '' }}">{{ hp.created_at[:19] if hp.created_at else 'N/A' }}</span></span>
-                            </div>
                         </div>
                         <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}" id="hp-status-{{ hp_id }}">
                             {% if hp.is_active %}Active{% else %}Inactive{% endif %}
                         </span>
                     </div>
                     <div class="meta-row">
-                        <span>Last Active: <span id="hp-last-active-{{ hp_id }}" class="js-timestamp" data-timestamp="{{ hp.last_active or '' }}">{{ hp.last_active[:19] if hp.last_active else 'N/A' }}</span></span>
-                        <span>Protocols: <span id="hp-protocols-{{ hp_id }}">{% if hp.active_protocols %}{{ hp.active_protocols|join(', ') }}{% else %}None{% endif %}</span></span>
-                        <span>Total Logs: <span id="hp-logs-{{ hp_id }}">{{ hp.logs|length }}</span></span>
+                        <span><strong>Protocols:</strong> <span id="hp-protocols-{{ hp_id }}">{% if hp.active_protocols %}{{ hp.active_protocols|join(', ') }}{% else %}None{% endif %}</span></span>
+                        <span><strong>Logs:</strong> <span id="hp-logs-{{ hp_id }}">{{ hp.logs|length }}</span></span>
                     </div>
                     <div class="honeypot-actions">
                         <button class="btn" type="button" onclick="toggleEdit('{{ hp_id }}')">Edit</button>

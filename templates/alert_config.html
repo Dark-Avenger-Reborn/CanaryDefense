@@ -18,7 +18,7 @@
                 <a href="/">Dashboard</a>
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
-                <a href="/alerts/config">Alert Config</a>
+                <a href="/alerts/config">Alerts</a>
                 <a href="/settings">Settings</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
@@ -35,29 +35,31 @@
         <div class="card">
             <div class="section-title">
                 <h2>Alert preferences</h2>
-                <p>Choose recipients and trigger conditions for notifications.</p>
+                <p>Configure email recipients and trigger conditions.</p>
             </div>
             <form method="POST" action="{{ url_for('database.alert_config') }}" class="form-grid">
                 <div class="form-row">
-                    <label for="emails"><strong>Alert email addresses</strong></label>
-                    <textarea name="emails" id="emails" placeholder="Enter email addresses separated by commas&#10;Example: alert@example.com, notify@example.com">{% if alerts and alerts.emails %}{{ alerts.emails|join(', ') }}{% endif %}</textarea>
-                    <p>Enter one or more email addresses where alert notifications should be sent.</p>
+                    <label for="emails"><strong>Email recipients</strong></label>
+                    <textarea name="emails" id="emails" rows="3" placeholder="Enter email addresses separated by commas&#10;Example: alert@example.com, notify@example.com">{% if alerts and alerts.emails %}{{ alerts.emails|join(', ') }}{% endif %}</textarea>
+                    <p style="font-size: 0.9rem; color: var(--muted); margin-top: 6px;">Comma-separated email addresses for alert notifications.</p>
                 </div>
 
                 <div class="form-row">
                     <label><strong>Alert triggers</strong></label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="alert_on_honeypot_down" {% if preferences and preferences.get('alert_on_honeypot_down') == True %}checked{% endif %}>
-                        <span>Alert when honeypot goes down</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="alert_on_suspicious_activity" {% if preferences and preferences.get('alert_on_suspicious_activity') == True %}checked{% endif %}>
-                        <span>Alert on suspicious activity</span>
-                    </label>
+                    <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--surface-2); border-radius: 12px; border: 1px solid var(--border);">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="alert_on_honeypot_down" {% if preferences and preferences.get('alert_on_honeypot_down') == True %}checked{% endif %}>
+                            <span>Alert when honeypot goes down</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="alert_on_suspicious_activity" {% if preferences and preferences.get('alert_on_suspicious_activity') == True %}checked{% endif %}>
+                            <span>Alert on suspicious activity</span>
+                        </label>
+                    </div>
                 </div>
 
-                <div class="honeypot-actions">
-                    <button type="submit" class="btn">Save alert settings</button>
+                <div style="display: flex; gap: 12px; margin-top: 12px;">
+                    <button type="submit" class="btn">Save settings</button>
                     <a href="/"><button type="button" class="btn btn-ghost">Cancel</button></a>
                 </div>
             </form>

@@ -18,8 +18,8 @@
                 <a href="/">Dashboard</a>
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
+                <a href="/alerts/config">Alerts</a>
                 <a href="/settings">Settings</a>
-                <a href="/alerts/config">Alert Config</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
         </div>
@@ -34,22 +34,21 @@
 
         <div class="card">
             <div class="section-title">
-                <h2>Current account</h2>
+                <h2>Account information</h2>
                 <p>Review your active credentials and verification status.</p>
             </div>
             {% if user and user.success %}
                 <div class="meta-row">
-                    <span>UID: {{ user.uid }}</span>
-                    <span>Email: {{ user.email }}</span>
-                    {% if user.display_name %}<span>Username: {{ user.display_name }}</span>{% endif %}
-                    <span>Email Verified: {% if user.email_verified %}Yes{% else %}No{% endif %}</span>
+                    <span><strong>Email:</strong> {{ user.email }}</span>
+                    {% if user.display_name %}<span><strong>Username:</strong> {{ user.display_name }}</span>{% endif %}
+                    <span><strong>Verified:</strong> {% if user.email_verified %}Yes{% else %}No{% endif %}</span>
                 </div>
             {% else %}
                 <p>Loading user information...</p>
             {% endif %}
         </div>
 
-        <div class="grid-2" style="margin-top: 24px;">
+        <div class="grid-2">
             <div class="card">
                 <div class="section-title">
                     <h2>Change email</h2>
@@ -57,34 +56,34 @@
                 </div>
                 <form method="POST" action="{{ url_for('auth.change_email') }}" class="form-grid">
                     <input type="email" name="new_email" placeholder="New Email Address" required>
-                    <button type="submit" class="btn">Change email</button>
+                    <button type="submit" class="btn">Update email</button>
                 </form>
             </div>
             <div class="card">
                 <div class="section-title">
                     <h2>Change password</h2>
-                    <p>Password must be at least 6 characters long.</p>
+                    <p>Password must be at least 6 characters.</p>
                 </div>
                 <form method="POST" action="{{ url_for('auth.change_password') }}" class="form-grid">
                     <input type="password" name="new_password" placeholder="New Password" required>
                     <input type="password" name="confirm_password" placeholder="Confirm Password" required>
-                    <button type="submit" class="btn">Change password</button>
+                    <button type="submit" class="btn">Update password</button>
                 </form>
             </div>
             <div class="card">
                 <div class="section-title">
                     <h2>Change username</h2>
-                    <p>Update how your team sees you across the console.</p>
+                    <p>Update your display name in the console.</p>
                 </div>
                 <form method="POST" action="{{ url_for('auth.change_username') }}" class="form-grid">
                     <input type="text" name="new_username" placeholder="New Username" required>
-                    <button type="submit" class="btn">Change username</button>
+                    <button type="submit" class="btn">Update username</button>
                 </form>
             </div>
             <div class="card">
                 <div class="section-title">
                     <h2>Sign out</h2>
-                    <p>End the current session on this device.</p>
+                    <p>End your current session.</p>
                 </div>
                 <form method="GET" action="{{ url_for('auth.logout') }}">
                     <button type="submit" class="btn btn-danger">Logout</button>
