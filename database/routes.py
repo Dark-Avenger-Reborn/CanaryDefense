@@ -17,7 +17,7 @@ def _get_actor_username(uid):
     profile = db.get_user_basic(uid)
     if not profile.get("success"):
         return None
-    return profile.get("username") or profile.get("email")
+    return profile.get("email")
 
 # Honeypot Management Routes
 @database_bp.route('/honeypots')
@@ -41,9 +41,9 @@ def honeypots():
         if hp.get("shared"):
             owner_profile = db.get_user_basic(hp.get("owner_uid"))
             if owner_profile.get("success"):
-                hp["owner_username"] = owner_profile.get("username") or owner_profile.get("email")
+                hp["owner_email"] = owner_profile.get("email")
             else:
-                hp["owner_username"] = "Unknown"
+                hp["owner_email"] = "Unknown"
     
     return render_template(
         'honeypots.html',
@@ -189,9 +189,9 @@ def logs():
         if hp.get("shared"):
             owner_profile = db.get_user_basic(hp.get("owner_uid"))
             if owner_profile.get("success"):
-                hp["owner_username"] = owner_profile.get("username") or owner_profile.get("email")
+                hp["owner_email"] = owner_profile.get("email")
             else:
-                hp["owner_username"] = "Unknown"
+                hp["owner_email"] = "Unknown"
     
     logs_data = []
     selected_honeypot = None
@@ -234,7 +234,7 @@ def honeypots_live():
         if hp.get("shared"):
             owner_profile = db.get_user_basic(hp.get("owner_uid"))
             if owner_profile.get("success"):
-                owner_label = owner_profile.get("username") or owner_profile.get("email")
+                owner_label = owner_profile.get("email")
         honeypots_payload[hp_id] = {
             "name": hp.get('name', hp_id),
             "description": hp.get('description'),
@@ -407,7 +407,6 @@ def collaboration():
             profile = db.get_user_basic(collab_uid)
             collaborators.append({
                 "uid": collab_uid,
-                "username": profile.get("username") if profile.get("success") else None,
                 "email": profile.get("email") if profile.get("success") else None,
                 "role": access.get("role", "read"),
                 "can_delete": bool(access.get("can_delete"))
@@ -423,7 +422,7 @@ def collaboration():
             owner_profile = db.get_user_basic(owner_uid)
             owner_label = None
             if owner_profile.get('success'):
-                owner_label = owner_profile.get('username') or owner_profile.get('email')
+                owner_label = owner_profile.get('email')
             hp_result = db.get_honeypot(owner_uid, honeypot_id)
             honeypot_name = hp_result.get('honeypot', {}).get('name') if hp_result.get('success') else honeypot_id
             invite_rows.append({
@@ -451,19 +450,19 @@ def send_invite():
         return redirect(url_for('auth.login'))
 
     uid = session.get('uid')
-    username = request.form.get('username', '').strip()
+    email = request.form.get('email', '').strip()
     role = request.form.get('role', 'read')
     if role not in {'read', 'manage'}:
         role = 'read'
     can_delete = request.form.get('can_delete') == 'on'
     honeypot_ids = request.form.getlist('honeypot_ids')
 
-    if not username or not honeypot_ids:
-        return redirect(url_for('database.collaboration', error='Username and honeypot selection are required'))
+    if not email or not honeypot_ids:
+        return redirect(url_for('database.collaboration', error='Email and honeypot selection are required'))
 
-    invitee_uid = db.find_uid_by_username(username)
+    invitee_uid = db.find_uid_by_email(email)
     if invitee_uid is None:
-        return redirect(url_for('database.collaboration', error='Username not found'))
+        return redirect(url_for('database.collaboration', error='Email not found'))
     if invitee_uid == uid:
         return redirect(url_for('database.collaboration', error='You cannot invite yourself'))
 
@@ -486,7 +485,7 @@ def send_invite():
             honeypot_id=honeypot_id,
             actor_uid=uid,
             actor_username=actor_username,
-            details={"invitee": username, "role": role, "can_delete": can_delete}
+            details={"invitee": email, "role": role, "can_delete": can_delete}
         )
 
     if errors:

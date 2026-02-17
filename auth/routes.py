@@ -132,25 +132,6 @@ def change_password():
     else:
         return redirect(url_for('auth.settings', error=result['error']))
 
-@auth_bp.route('/change_username', methods=['POST'])
-@limiter.limit("10 per minute")
-def change_username():
-    if not is_logged_in():
-        return redirect(url_for('login'))
-    
-    new_username = request.form.get('new_username')
-    
-    if not new_username:
-        return redirect(url_for('auth.settings', error='Username is required'))
-    
-    result = auth.change_username(session['id_token'], new_username)
-    
-    if result['success']:
-        db.update_username(session['uid'], new_username)
-        return redirect(url_for('auth.settings', success='Username changed successfully'))
-    else:
-        return redirect(url_for('auth.settings', error=result['error']))
-
 @auth_bp.route('/reset_password', methods=['GET', 'POST'])
 @limiter.limit("3 per minute")
 def reset_password():

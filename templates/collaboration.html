@@ -38,13 +38,13 @@
         <div class="card">
             <div class="section-title">
                 <h2>Invite collaborators</h2>
-                <p>Invite by username and choose access per honeypot.</p>
+                <p>Invite by email and choose access per honeypot.</p>
             </div>
             <form method="POST" action="/collaboration/invite" class="form-grid">
                 <div class="form-row">
-                    <label for="username"><strong>Username</strong></label>
-                    <input type="text" id="username" name="username" required placeholder="e.g., blue-team-ops">
-                    <p class="helper-text">Invitees must have set their username in Settings.</p>
+                    <label for="email"><strong>Email</strong></label>
+                    <input type="email" id="email" name="email" required placeholder="e.g., ops@example.com">
+                    <p class="helper-text">Invitees must have an account with this email.</p>
                 </div>
                 <div class="form-row">
                     <label for="role"><strong>Access level</strong></label>
@@ -143,7 +143,7 @@
                                 <tbody>
                                     {% for collab in collaborators.get(hp_id) %}
                                     <tr>
-                                        <td>{{ collab.username or collab.email or collab.uid }}</td>
+                                        <td>{{ collab.email or collab.uid }}</td>
                                         <td>
                                             <form method="POST" action="/collaboration/honeypots/{{ hp_id }}/collaborators/{{ collab.uid }}/update" class="inline-form">
                                                 <select name="role">

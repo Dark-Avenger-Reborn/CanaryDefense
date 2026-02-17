@@ -72,7 +72,7 @@
                             <h3>{{ hp.name }}</h3>
                             {% if hp.shared %}
                             <div class="badge-row">
-                                <span class="badge">Shared by {{ hp.owner_username or 'Unknown' }}</span>
+                                <span class="badge">Shared by {{ hp.owner_email or 'Unknown' }}</span>
                             </div>
                             {% endif %}
                             {% if hp.description %}

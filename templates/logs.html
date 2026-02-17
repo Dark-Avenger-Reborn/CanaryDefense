@@ -46,7 +46,7 @@
                     <option value="">-- Choose a Honeypot --</option>
                     {% for hp_id, hp in honeypots.items() %}
                     <option value="{{ hp_id }}" {% if hp_id == selected_honeypot_id %}selected{% endif %}>
-                        {{ hp.name }} ({{ hp_id }}){% if hp.shared %} - shared by {{ hp.owner_username or 'Unknown' }}{% endif %}
+                        {{ hp.name }} ({{ hp_id }}){% if hp.shared %} - shared by {{ hp.owner_email or 'Unknown' }}{% endif %}
                     </option>
                     {% endfor %}
                 </select>

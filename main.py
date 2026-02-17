@@ -60,9 +60,9 @@ def index():
             if hp.get("shared"):
                 owner_profile = db.get_user_basic(hp.get("owner_uid"))
                 if owner_profile.get("success"):
-                    hp["owner_username"] = owner_profile.get("username") or owner_profile.get("email")
+                    hp["owner_email"] = owner_profile.get("email")
                 else:
-                    hp["owner_username"] = "Unknown"
+                    hp["owner_email"] = "Unknown"
         
         # Calculate statistics
         stats_result = db.get_user_stats(uid)
@@ -96,6 +96,11 @@ def index():
         
         activity_result = db.list_recent_activity(uid, limit=8)
         recent_activity = activity_result.get("activity", []) if activity_result.get("success") else []
+        name_lookup = {hp_id: hp.get("name", hp_id) for hp_id, hp in honeypots_data.items()}
+        for item in recent_activity:
+            hp_id = item.get("honeypot_id")
+            if hp_id:
+                item["honeypot_name"] = name_lookup.get(hp_id, hp_id)
 
         return render_template('dashboard.html',
                              total_honeypots=total_honeypots,
@@ -169,6 +174,11 @@ def dashboard_data():
 
     activity_result = db.list_recent_activity(uid, limit=8)
     recent_activity = activity_result.get("activity", []) if activity_result.get("success") else []
+    name_lookup = {hp_id: hp.get("name", hp_id) for hp_id, hp in honeypots_data.items()}
+    for item in recent_activity:
+        hp_id = item.get("honeypot_id")
+        if hp_id:
+            item["honeypot_name"] = name_lookup.get(hp_id, hp_id)
 
     return jsonify({
         "success": True,

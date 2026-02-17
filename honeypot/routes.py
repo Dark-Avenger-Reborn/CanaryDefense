@@ -40,7 +40,7 @@ def create_honeypot():
         actor_profile = db.get_user_basic(uid)
         actor_username = None
         if actor_profile.get("success"):
-            actor_username = actor_profile.get("username") or actor_profile.get("email")
+            actor_username = actor_profile.get("email")
         db.record_activity(
             uid,
             "honeypot_created",
@@ -110,7 +110,7 @@ def list_honeypots():
                 if hp_data.get("shared"):
                     owner_profile = db.get_user_basic(hp_data.get("owner_uid"))
                     if owner_profile.get("success"):
-                        owner_label = owner_profile.get("username") or owner_profile.get("email")
+                        owner_label = owner_profile.get("email")
                 honeypot_list.append({
                     'id': hp_id,
                     'name': hp_data.get('name', 'Unknown'),
@@ -159,7 +159,7 @@ def delete_honeypot(honeypot_id):
             actor_profile = db.get_user_basic(uid)
             actor_username = None
             if actor_profile.get("success"):
-                actor_username = actor_profile.get("username") or actor_profile.get("email")
+                actor_username = actor_profile.get("email")
             db.record_activity(
                 owner_uid,
                 "honeypot_deleted",

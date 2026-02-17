@@ -78,7 +78,7 @@
                     </div>
                     {% if hp.shared %}
                     <div class="badge-row">
-                        <span class="badge">Shared by {{ hp.owner_username or 'Unknown' }}</span>
+                        <span class="badge">Shared by {{ hp.owner_email or 'Unknown' }}</span>
                     </div>
                     {% endif %}
                     {% if hp.description %}<p style="color: var(--muted); margin-bottom: 10px;">{{ hp.description }}</p>{% endif %}
@@ -113,7 +113,7 @@
                         <tr>
                             <td class="js-timestamp" data-timestamp="{{ item.timestamp or '' }}">{{ item.timestamp[:19] if item.timestamp else 'N/A' }}</td>
                             <td>{{ item.action|replace('_', ' ')|title }}</td>
-                            <td>{{ item.honeypot_id or '-' }}</td>
+                            <td>{{ item.honeypot_name or item.honeypot_id or '-' }}</td>
                             <td>{{ item.actor_username or 'System' }}</td>
                         </tr>
                         {% endfor %}

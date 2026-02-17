@@ -175,9 +175,6 @@ class DatabaseCommunicator:
 
                 user_data = {
                     "email": email,
-                    "profile": {
-                        "username": None
-                    },
                     "honeypots": {},
                     "stats": {
                         "total_honeypots_created": 0,
@@ -199,34 +196,6 @@ class DatabaseCommunicator:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def update_username(self, uid, username):
-        """
-        Update the stored username for a user.
-
-        Args:
-            uid (str): Firebase UID
-            username (str): Username/display name
-
-        Returns:
-            dict: Success status
-        """
-        try:
-            normalized = (username or "").strip()
-            if not normalized:
-                return {"success": False, "error": "Username is required"}
-
-            with self._transaction() as conn:
-                user_data = self._load_user_data(conn, uid)
-                if user_data is None:
-                    return {"success": False, "error": "User not found"}
-
-                profile = user_data.setdefault("profile", {})
-                profile["username"] = normalized
-                self._save_user_data(conn, uid, user_data)
-            return {"success": True, "message": "Username updated"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
     def get_user_basic(self, uid):
         """
         Get basic profile info for a user.
@@ -239,30 +208,27 @@ class DatabaseCommunicator:
                 user_data = self._load_user_data(conn, uid)
                 if user_data is None:
                     return {"success": False, "error": "User not found"}
-
-                profile = user_data.get("profile", {})
                 return {
                     "success": True,
                     "uid": uid,
                     "email": user_data.get("email"),
-                    "username": profile.get("username")
                 }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def find_uid_by_username(self, username):
+    def find_uid_by_email(self, email):
         """
-        Find a UID by username.
+        Find a UID by email.
 
         Args:
-            username (str): Username to search
+            email (str): Email to search
 
         Returns:
             str: UID if found, else None
         """
-        if not username:
+        if not email:
             return None
-        normalized = username.strip().lower()
+        normalized = email.strip().lower()
         try:
             with self._connect() as conn:
                 rows = conn.execute("SELECT uid, data FROM users").fetchall()
@@ -271,8 +237,7 @@ class DatabaseCommunicator:
                         user_data = json.loads(row["data"])
                     except json.JSONDecodeError:
                         continue
-                    profile = user_data.get("profile", {})
-                    stored = (profile.get("username") or "").strip().lower()
+                    stored = (user_data.get("email") or "").strip().lower()
                     if stored and stored == normalized:
                         return row["uid"]
             return None
