@@ -106,14 +106,8 @@ install_dependencies() {
 	apt-get update -y
 	apt-get install -y python3 iptables cron wget curl
 
-	# Check if pip3 is already installed and working
-	if command -v pip3 >/dev/null 2>&1; then
-		echo "pip3 is already installed: $(pip3 --version)"
-		return
-	fi
-
-	# If pip3 is not found, install python3-pip
-	apt-get install -y python3-pip
+	# Ensure python3-pip is installed for python3 -m pip
+	apt-get install -y python3-pip || true
 }
 
 ensure_user_and_dirs() {
