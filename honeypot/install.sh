@@ -121,21 +121,24 @@ ensure_user_and_dirs() {
 }
 
 install_python_packages() {
-	# Try to upgrade pip, but don't fail if it's in use
-	python3 -m pip install --upgrade pip --break-system-packages 2>/dev/null || true
+	# Skip pip upgrade to avoid conflicts
 	
-	# Try installing all packages at once first
-	if ! python3 -m pip install --break-system-packages \
-		"honeypots" \
-		"python-socketio" \
-		"websocket-client" \
-		"twisted" 2>/dev/null; then
-		# If batch install fails (e.g., due to locked files), try one at a time
-		echo "Batch install failed, trying packages individually..."
-		python3 -m pip install --break-system-packages "honeypots" || true
-		python3 -m pip install --break-system-packages "python-socketio" || true
-		python3 -m pip install --break-system-packages "websocket-client" || true
-		python3 -m pip install --break-system-packages "twisted" || true
+	# Install packages using --ignore-installed to avoid conflicts with system packages
+	echo "Installing Python packages..."
+	
+	# Install each package separately with better error handling
+	for package in "honeypots" "python-socketio" "websocket-client" "twisted"; do
+		echo "Installing $package..."
+		if ! python3 -m pip install --break-system-packages --no-warn-script-location "$package"; then
+			echo "Failed to install $package. Retrying with --ignore-installed..."
+			python3 -m pip install --break-system-packages --ignore-installed --no-warn-script-location "$package"
+		fi
+	done
+	
+	# Verify critical package installed
+	if ! python3 -c "import honeypots" 2>/dev/null; then
+		echo "ERROR: honeypots package failed to install properly." >&2
+		exit 1
 	fi
 }
 
