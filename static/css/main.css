@@ -492,12 +492,19 @@ textarea:focus {
     margin-bottom: 32px;
 }
 
+.stat-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
 .stat-card {
     padding: 24px;
     border-radius: 16px;
     background: var(--surface);
     border: 2px solid var(--border);
     transition: all 0.2s ease;
+    cursor: pointer;
 }
 
 .stat-card:hover {

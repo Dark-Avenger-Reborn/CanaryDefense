@@ -34,22 +34,30 @@
         </div>
 
         <div class="stats">
-            <div class="stat-card">
-                <h3>Honeypots</h3>
-                <p id="stat-total-honeypots">{{ total_honeypots }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>Active</h3>
-                <p id="stat-active-honeypots">{{ active_honeypots }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>Total Logs</h3>
-                <p id="stat-total-logs">{{ total_logs }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>Infiltrations</h3>
-                <p id="stat-infiltrations-count">{{ infiltrations_count }}</p>
-            </div>
+            <a href="/honeypots" class="stat-link">
+                <div class="stat-card">
+                    <h3>Honeypots</h3>
+                    <p id="stat-total-honeypots">{{ total_honeypots }}</p>
+                </div>
+            </a>
+            <a href="/honeypots" class="stat-link">
+                <div class="stat-card">
+                    <h3>Active</h3>
+                    <p id="stat-active-honeypots">{{ active_honeypots }}</p>
+                </div>
+            </a>
+            <a href="/logs" class="stat-link">
+                <div class="stat-card">
+                    <h3>Total Logs</h3>
+                    <p id="stat-total-logs">{{ total_logs }}</p>
+                </div>
+            </a>
+            <a href="/logs" class="stat-link">
+                <div class="stat-card">
+                    <h3>Infiltrations</h3>
+                    <p id="stat-infiltrations-count">{{ infiltrations_count }}</p>
+                </div>
+            </a>
         </div>
 
         {% if honeypots %}
