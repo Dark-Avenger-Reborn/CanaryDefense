@@ -84,6 +84,7 @@
                         </span>
                     </div>
                     <div class="meta-row">
+                        <span><strong>ID:</strong> {{ hp_id }}</span>
                         <span><strong>Protocols:</strong> <span id="hp-protocols-{{ hp_id }}">{% if hp.active_protocols %}{{ hp.active_protocols|join(', ') }}{% else %}None{% endif %}</span></span>
                         <span><strong>Logs:</strong> <span id="hp-logs-{{ hp_id }}">{{ hp.logs|length }}</span></span>
                     </div>
