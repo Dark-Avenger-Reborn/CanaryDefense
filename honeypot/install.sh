@@ -114,6 +114,7 @@ ensure_user_and_dirs() {
 	mkdir -p "$INSTALL_DIR"
 	mkdir -p "$INSTALL_DIR/logs"
 	chown -R "$HONEYPOT_USER":"$HONEYPOT_USER" "$INSTALL_DIR"
+	chmod 750 "$INSTALL_DIR"
 }
 
 install_python_packages() {
@@ -144,6 +145,7 @@ download_client_files() {
 	fi
 
 	chown "$HONEYPOT_USER":"$HONEYPOT_USER" "$INSTALL_DIR/honeypot_client.py"
+	chmod 644 "$INSTALL_DIR/honeypot_client.py"
 }
 
 fix_honeypots_compat() {
@@ -199,8 +201,7 @@ done
 SH
 	sed -i "s/__PORT_OFFSET__/${PORT_OFFSET}/" "$INSTALL_DIR/port-map.sh"
 	chmod 700 "$INSTALL_DIR/port-map.sh"
-
-	chown -R "$HONEYPOT_USER":"$HONEYPOT_USER" "$INSTALL_DIR/port-map.sh"
+	chown root:root "$INSTALL_DIR/port-map.sh"
 }
 
 write_config() {
@@ -271,6 +272,7 @@ with open(os.path.join(install_dir, "config.json"), "w", encoding="utf-8") as f:
 PY
 
 	chown "$HONEYPOT_USER":"$HONEYPOT_USER" "$INSTALL_DIR/config.json"
+	chmod 640 "$INSTALL_DIR/config.json"
 }
 
 setup_systemd() {
@@ -307,6 +309,19 @@ StandardOutput=append:$INSTALL_DIR/client.log
 StandardError=append:$INSTALL_DIR/client.log
 Restart=on-failure
 RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$INSTALL_DIR/logs
+ReadWritePaths=$INSTALL_DIR/client.log
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=multi-user.target
