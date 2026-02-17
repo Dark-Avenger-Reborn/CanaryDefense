@@ -121,7 +121,9 @@ ensure_user_and_dirs() {
 }
 
 install_python_packages() {
-	python3 -m pip install --upgrade pip --break-system-packages
+	# Try to upgrade pip, but don't fail if it's in use
+	python3 -m pip install --upgrade pip --break-system-packages 2>/dev/null || true
+	
 	python3 -m pip install --break-system-packages \
 		"honeypots" \
 		"python-socketio" \
