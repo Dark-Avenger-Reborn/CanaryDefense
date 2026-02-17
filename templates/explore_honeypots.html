@@ -257,6 +257,31 @@
 			margin: 12px 0;
 		}
 
+		.faq-grid {
+			display: grid;
+			gap: 24px;
+		}
+
+		.faq-item {
+			padding: 20px;
+			background: var(--surface-2);
+			border-radius: 8px;
+			border-left: 3px solid var(--accent);
+		}
+
+		.faq-item h4 {
+			color: var(--ink);
+			margin-bottom: 12px;
+			font-size: 1.05rem;
+			font-weight: 600;
+		}
+
+		.faq-item p {
+			line-height: 1.7;
+			font-size: 0.98rem;
+			margin: 0;
+		}
+
 		@media (max-width: 768px) {
 			.cta-section {
 				padding: 28px 20px;
@@ -575,7 +600,10 @@
 		<hr class="section-divider">
 
 		<!-- Key Features -->
-	<div class="card fade-up" id="features">
+		<div class="card fade-up" id="features">
+			<div class="section-title">
+				<h2>Key Features</h2>
+				<p>Everything you need to deploy and manage honeypots</p>
 			</div>
 
 			<div class="feature-grid">
@@ -648,35 +676,35 @@
 				<p>Common questions about honeypots</p>
 			</div>
 
-			<div style="display: grid; gap: 20px;">
-				<div>
-					<h4 style="color: var(--ink); margin-bottom: 8px;">Are honeypots safe to deploy?</h4>
-					<p style="line-height: 1.6;">Yes. Honeypots are intentionally isolated decoys with no real data or services. They're designed to attract attackers away from production systems. However, you should monitor them closely and isolate them from critical infrastructure.</p>
+			<div class="faq-grid">
+				<div class="faq-item">
+					<h4>Are honeypots safe to deploy?</h4>
+					<p>Yes. Honeypots are intentionally isolated decoys with no real data or services. They're designed to attract attackers away from production systems. However, you should monitor them closely and isolate them from critical infrastructure.</p>
 				</div>
 
-				<div>
-					<h4 style="color: var(--ink); margin-bottom: 8px;">Can I deploy honeypots on production servers?</h4>
-					<p style="line-height: 1.6;">While you can, it's best practice to deploy them on separate infrastructure or in segmented networks. This prevents performance impact and ensures attackers don't have access to your real systems.</p>
+				<div class="faq-item">
+					<h4>Can I deploy honeypots on production servers?</h4>
+					<p>While you can, it's best practice to deploy them on separate infrastructure or in segmented networks. This prevents performance impact and ensures attackers don't have access to your real systems.</p>
 				</div>
 
-				<div>
-					<h4 style="color: var(--ink); margin-bottom: 8px;">What if an attacker compromises a honeypot?</h4>
-					<p style="line-height: 1.6;">That's the goal—honeypots are designed to be compromised in controlled environments. All attacker actions are logged. You observe the attack without risk to real systems and gain valuable intelligence.</p>
+				<div class="faq-item">
+					<h4>What if an attacker compromises a honeypot?</h4>
+					<p>That's the goal—honeypots are designed to be compromised in controlled environments. All attacker actions are logged. You observe the attack without risk to real systems and gain valuable intelligence.</p>
 				</div>
 
-				<div>
-					<h4 style="color: var(--ink); margin-bottom: 8px;">How do I know if a honeypot is being attacked?</h4>
-					<p style="line-height: 1.6;">Any activity on a honeypot is suspicious by definition (since it's not used for legitimate purposes). {{ brand_name }} logs all interactions and can send alerts via email when activity is detected.</p>
+				<div class="faq-item">
+					<h4>How do I know if a honeypot is being attacked?</h4>
+					<p>Any activity on a honeypot is suspicious by definition (since it's not used for legitimate purposes). {{ brand_name }} logs all interactions and can send alerts via email when activity is detected.</p>
 				</div>
 
-				<div>
-					<h4 style="color: var(--ink); margin-bottom: 8px;">Can honeypots be used in legal compliance?</h4>
-					<p style="line-height: 1.6;">Yes. Honeypots are recognized by major compliance frameworks (NIST, CIS, OWASP) as a valid detection mechanism. They provide high-confidence threat alerts with minimal false positives.</p>
+				<div class="faq-item">
+					<h4>Can honeypots be used in legal compliance?</h4>
+					<p>Yes. Honeypots are recognized by major compliance frameworks (NIST, CIS, OWASP) as a valid detection mechanism. They provide high-confidence threat alerts with minimal false positives.</p>
 				</div>
 
-				<div>
-					<h4 style="color: var(--ink); margin-bottom: 8px;">Do I need special hardware for honeypots?</h4>
-					<p style="line-height: 1.6;">No. {{ brand_name }} honeypots run on any Linux system—virtual machines, cloud instances, or physical servers. Deploy wherever your network monitoring is needed.</p>
+				<div class="faq-item">
+					<h4>Do I need special hardware for honeypots?</h4>
+					<p>No. {{ brand_name }} honeypots run on any Linux system—virtual machines, cloud instances, or physical servers. Deploy wherever your network monitoring is needed.</p>
 				</div>
 			</div>
 		</div>
