@@ -124,11 +124,19 @@ install_python_packages() {
 	# Try to upgrade pip, but don't fail if it's in use
 	python3 -m pip install --upgrade pip --break-system-packages 2>/dev/null || true
 	
-	python3 -m pip install --break-system-packages \
+	# Try installing all packages at once first
+	if ! python3 -m pip install --break-system-packages \
 		"honeypots" \
 		"python-socketio" \
 		"websocket-client" \
-		"twisted"
+		"twisted" 2>/dev/null; then
+		# If batch install fails (e.g., due to locked files), try one at a time
+		echo "Batch install failed, trying packages individually..."
+		python3 -m pip install --break-system-packages "honeypots" || true
+		python3 -m pip install --break-system-packages "python-socketio" || true
+		python3 -m pip install --break-system-packages "websocket-client" || true
+		python3 -m pip install --break-system-packages "twisted" || true
+	fi
 }
 
 download_client_files() {
