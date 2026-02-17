@@ -107,7 +107,7 @@ install_dependencies() {
 	apt-get install -y python3 iptables cron wget curl
 
 	# Ensure python3-pip is installed for python3 -m pip
-	apt-get install -y python3-pip || true
+	command -v pip3 >/dev/null 2>&1 || apt-get install -y python3-pip
 }
 
 ensure_user_and_dirs() {
