@@ -22,6 +22,10 @@
     box-sizing: border-box;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 body {
     margin: 0;
     font-family: "Space Grotesk", "Segoe UI", sans-serif;
@@ -54,6 +58,7 @@ p {
 .shell {
     width: min(1280px, 100%);
     margin: 0 auto;
+    overflow-x: hidden;
 }
 
 .top-bar {
@@ -136,6 +141,7 @@ p {
     padding: 28px;
     box-shadow: var(--shadow-soft);
     margin-bottom: 24px;
+    overflow-x: auto;
 }
 
 .notice {

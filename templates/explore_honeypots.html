@@ -26,6 +26,7 @@
 			border: 1px solid var(--border);
 			border-radius: 12px;
 			transition: all 0.3s ease;
+			min-width: 0;
 		}
 
 		.feature-card:hover {
@@ -106,6 +107,7 @@
 			grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 			gap: 12px;
 			margin: 20px 0;
+			overflow-x: auto;
 		}
 
 		.protocol-badge {
@@ -116,6 +118,7 @@
 			text-align: center;
 			font-size: 0.9rem;
 			font-weight: 500;
+			word-break: break-word;
 		}
 
 		.cta-section {
@@ -174,6 +177,7 @@
 			background: var(--surface);
 			border: 1px solid var(--border);
 			border-radius: 12px;
+			min-width: 0;
 		}
 
 		.stat-number {
@@ -311,7 +315,7 @@
 		</div>
 
 		<!-- What is a Honeypot Section -->
-		<div class="card fade-up">
+		<div class="card fade-up" id="what-is-honeypot">
 			<div class="section-title">
 				<h2>What is a Honeypot?</h2>
 				<p>A primer on deception technology and threat detection</p>
@@ -327,10 +331,102 @@
 			</p>
 		</div>
 
-		<hr class="section-divider">
+		<!-- Architecture & System Requirements Section -->
+		<div class="card fade-up" id="system-requirements">
+			<div class="section-title">
+				<h2>Architecture & System Requirements</h2>
+				<p>Platform compatibility and technical specifications</p>
+			</div>
+
+			<h3 style="color: var(--ink); margin-top: 24px; margin-bottom: 16px; font-size: 1.2rem;">🏗️ System Architecture</h3>
+			<p style="margin-bottom: 16px; line-height: 1.6; font-size: 1rem;">
+				{{ brand_name }} uses a client-server architecture for honeypot deployment and monitoring:
+			</p>
+			<ul style="margin-bottom: 20px; line-height: 1.8; padding-left: 24px;">
+				<li><strong>Web Dashboard</strong>: Flask-based web application for managing honeypots, viewing logs, and configuring alerts</li>
+				<li><strong>Honeypot Client</strong>: Python-based agent deployed on target systems using the honeypots library (v0.36)</li>
+				<li><strong>Real-time Communication</strong>: Socket.IO protocol for instant log streaming and heartbeat monitoring</li>
+				<li><strong>Service Management</strong>: Systemd integration for automatic startup and daemon management</li>
+				<li><strong>Port Mapping</strong>: Optional iptables rules to enable non-root users to run privileged port services</li>
+			</ul>
+
+			<h3 style="color: var(--ink); margin-top: 28px; margin-bottom: 16px; font-size: 1.2rem;">💻 Supported Operating Systems</h3>
+			<p style="margin-bottom: 16px; line-height: 1.6; font-size: 1rem;">
+				The honeypot client is designed for <strong>Linux-based systems</strong> with the following requirements:
+			</p>
+
+			<div class="feature-grid" style="margin-top: 20px;">
+				<div class="feature-card">
+					<h3>✅ Verified Systems</h3>
+					<p style="margin-bottom: 12px; font-weight: 600; color: var(--accent);">Tested & Supported</p>
+					<ul style="line-height: 1.8; padding-left: 20px; margin: 0;">
+						<li>Ubuntu 20.04 LTS</li>
+						<li>Ubuntu 22.04 LTS</li>
+						<li>Ubuntu 24.04 LTS</li>
+						<li>Debian 11 (Bullseye)</li>
+						<li>Debian 12 (Bookworm)</li>
+					</ul>
+				</div>
+				<div class="feature-card">
+					<h3>🐧 Linux Requirements</h3>
+					<p style="margin-bottom: 12px; font-weight: 600; color: var(--accent);">System Dependencies</p>
+					<ul style="line-height: 1.8; padding-left: 20px; margin: 0;">
+						<li>Python 3.8+</li>
+						<li>systemd (for service management)</li>
+						<li>iptables (for port mapping)</li>
+						<li>apt package manager</li>
+						<li>Root access (for installation)</li>
+					</ul>
+				</div>
+				<div class="feature-card">
+					<h3>⚙️ Python Dependencies</h3>
+					<p style="margin-bottom: 12px; font-weight: 600; color: var(--accent);">Installed Automatically</p>
+					<ul style="line-height: 1.8; padding-left: 20px; margin: 0;">
+						<li>honeypots==0.36</li>
+						<li>python-socketio==5.11.4</li>
+						<li>websocket-client</li>
+						<li>twisted</li>
+					</ul>
+				</div>
+			</div>
+
+			<h3 style="color: var(--ink); margin-top: 28px; margin-bottom: 16px; font-size: 1.2rem;">🚀 Deployment Options</h3>
+			<div class="example-section">
+				<div class="example-item">
+					<h4>☁️ Cloud Virtual Machines</h4>
+					<div class="example-description">
+						Deploy on AWS EC2, Google Cloud Compute Engine, Azure VMs, DigitalOcean Droplets, or any cloud provider offering Linux instances.
+					</div>
+				</div>
+				<div class="example-item">
+					<h4>🖥️ Physical Servers</h4>
+					<div class="example-description">
+						Install on bare-metal Linux servers in data centers or edge locations for network monitoring.
+					</div>
+				</div>
+				<div class="example-item">
+					<h4>📦 Virtual Machines (VMware, VirtualBox)</h4>
+					<div class="example-description">
+						Run honeypots inside virtual machines on local hypervisors for isolated testing and monitoring environments.
+					</div>
+				</div>
+				<div class="example-item">
+					<h4>🐳 Containerized Environments</h4>
+					<div class="example-description">
+						Compatible with Docker containers and Kubernetes pods running systemd-enabled Linux distributions.
+					</div>
+				</div>
+			</div>
+
+			<div style="background: var(--surface-2); padding: 20px; border-radius: 12px; margin-top: 24px; border-left: 4px solid var(--accent);">
+				<p style="margin: 0; line-height: 1.6; font-size: 0.95rem;">
+					<strong>Note:</strong> While the honeypot client detects the underlying platform using Python's <code style="background: var(--surface); padding: 2px 6px; border-radius: 4px;">platform.platform()</code>, the installation script is optimized for Debian/Ubuntu systems. For other Linux distributions, manual installation may be required.
+				</p>
+			</div>
+		</div>
 
 		<!-- How It Works Section -->
-		<div class="card fade-up">
+		<div class="card fade-up" id="how-it-works">
 			<div class="section-title">
 				<h2>How Honeypots Work</h2>
 				<p>The mechanics of deception and detection</p>
@@ -366,45 +462,8 @@
 
 		<hr class="section-divider">
 
-		<!-- Why Use Honeypots Section -->
-		<div class="card fade-up">
-			<div class="section-title">
-				<h2>Why Use Honeypots?</h2>
-				<p>Benefits of deception technology</p>
-			</div>
-
-			<div class="feature-grid">
-				<div class="feature-card">
-					<h3>🎯 Detect Breaches Early</h3>
-					<p>Any interaction with a honeypot is immediately suspicious. Since legitimate users never need to access them, you get zero false positives and immediate threat detection.</p>
-				</div>
-				<div class="feature-card">
-					<h3>📊 Gather Intelligence</h3>
-					<p>Learn attacker methods, tools, techniques, and tactics (ATT&CK). Understand what vulnerabilities are being exploited and how attackers probe your network.</p>
-				</div>
-				<div class="feature-card">
-					<h3>⚡ Low Alert Fatigue</h3>
-					<p>Unlike traditional IDS/IPS systems, honeypots generate fewer false positives. Every alert is high-confidence, enabling focused incident response.</p>
-				</div>
-				<div class="feature-card">
-					<h3>🛡️ Strengthen Defense</h3>
-					<p>Use honeypot findings to improve firewall rules, patch systems, and harden your actual infrastructure. Turn threat data into actionable security improvements.</p>
-				</div>
-				<div class="feature-card">
-					<h3>🌐 Monitor Multiple Protocols</h3>
-					<p>Track attacks across SSH, HTTP, FTP, SMTP, DNS, RDP, database protocols, and more. Understand the full spectrum of attack surface in your network.</p>
-				</div>
-				<div class="feature-card">
-					<h3>⏱️ Real-Time Visibility</h3>
-					<p>Track active honeypots, view recent logs instantly, and monitor protocol usage across your deployment. Make security decisions based on live data.</p>
-				</div>
-			</div>
-		</div>
-
-		<hr class="section-divider">
-
 		<!-- Supported Protocols -->
-		<div class="card fade-up">
+		<div class="card fade-up" id="supported-protocols">
 			<div class="section-title">
 				<h2>Supported Protocols</h2>
 				<p>Deploy honeypots for these services</p>
@@ -444,7 +503,7 @@
 		<hr class="section-divider">
 
 		<!-- Real-World Examples -->
-		<div class="card fade-up">
+		<div class="card fade-up" id="examples">
 			<div class="section-title">
 				<h2>Real-World Examples</h2>
 				<p>Common honeypot deployment scenarios</p>
@@ -516,10 +575,7 @@
 		<hr class="section-divider">
 
 		<!-- Key Features -->
-		<div class="card fade-up">
-			<div class="section-title">
-				<h2>{{ brand_name }} Features</h2>
-				<p>Tools for effective honeypot management</p>
+	<div class="card fade-up" id="features">
 			</div>
 
 			<div class="feature-grid">
