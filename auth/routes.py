@@ -146,6 +146,7 @@ def change_username():
     result = auth.change_username(session['id_token'], new_username)
     
     if result['success']:
+        db.update_username(session['uid'], new_username)
         return redirect(url_for('auth.settings', success='Username changed successfully'))
     else:
         return redirect(url_for('auth.settings', error=result['error']))

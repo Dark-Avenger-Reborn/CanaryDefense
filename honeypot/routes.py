@@ -36,6 +36,18 @@ def create_honeypot():
         
         if not result['success']:
             return jsonify({'error': result.get('error', 'Failed to create honeypot')}), 400
+
+        actor_profile = db.get_user_basic(uid)
+        actor_username = None
+        if actor_profile.get("success"):
+            actor_username = actor_profile.get("username") or actor_profile.get("email")
+        db.record_activity(
+            uid,
+            "honeypot_created",
+            honeypot_id=honeypot_id,
+            actor_uid=uid,
+            actor_username=actor_username
+        )
         
         return jsonify({
             'success': True,
@@ -87,20 +99,28 @@ def list_honeypots():
     
     try:
         uid = session.get('uid')
-        result = db.list_honeypots(uid)
+        result = db.list_accessible_honeypots(uid)
         
         if result['success']:
             honeypots = result.get('honeypots', {})
             honeypot_list = []
             
             for hp_id, hp_data in honeypots.items():
+                owner_label = None
+                if hp_data.get("shared"):
+                    owner_profile = db.get_user_basic(hp_data.get("owner_uid"))
+                    if owner_profile.get("success"):
+                        owner_label = owner_profile.get("username") or owner_profile.get("email")
                 honeypot_list.append({
                     'id': hp_id,
                     'name': hp_data.get('name', 'Unknown'),
                     'is_active': hp_data.get('is_active', False),
                     'created_at': hp_data.get('created_at'),
                     'last_active': hp_data.get('last_active'),
-                    'description': hp_data.get('description', '')
+                    'description': hp_data.get('description', ''),
+                    'shared': bool(hp_data.get('shared')),
+                    'owner_uid': hp_data.get('owner_uid'),
+                    'owner': owner_label
                 })
             
             return jsonify({
@@ -125,9 +145,28 @@ def delete_honeypot(honeypot_id):
     
     try:
         uid = session.get('uid')
-        result = db.delete_honeypot(uid, honeypot_id)
+        access = db.resolve_honeypot_access(uid, honeypot_id)
+        if not access.get("success"):
+            return jsonify({'error': access.get('error')}), 403
+
+        if access.get("owner_uid") != uid and not access.get("can_delete"):
+            return jsonify({'error': 'Delete permission denied'}), 403
+
+        owner_uid = access.get("owner_uid")
+        result = db.delete_honeypot(owner_uid, honeypot_id)
         
         if result['success']:
+            actor_profile = db.get_user_basic(uid)
+            actor_username = None
+            if actor_profile.get("success"):
+                actor_username = actor_profile.get("username") or actor_profile.get("email")
+            db.record_activity(
+                owner_uid,
+                "honeypot_deleted",
+                honeypot_id=honeypot_id,
+                actor_uid=uid,
+                actor_username=actor_username
+            )
             return jsonify({'success': True, 'message': 'Honeypot deleted'}), 200
         else:
             return jsonify({'error': 'Failed to delete honeypot'}), 400
@@ -149,7 +188,12 @@ def get_honeypot_logs(honeypot_id):
         limit = request.args.get('limit', 100, type=int)
         offset = request.args.get('offset', 0, type=int)
         
-        result = db.get_honeypot(uid, honeypot_id)
+        access = db.get_honeypot_with_access(uid, honeypot_id)
+        if not access.get('success'):
+            return jsonify({'error': access.get('error')}), 403
+
+        owner_uid = access.get('owner_uid')
+        result = db.get_honeypot(owner_uid, honeypot_id)
         
         if result['success']:
             honeypot = result.get('honeypot', {})

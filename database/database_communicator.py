@@ -175,11 +175,16 @@ class DatabaseCommunicator:
 
                 user_data = {
                     "email": email,
+                    "profile": {
+                        "username": None
+                    },
                     "honeypots": {},
                     "stats": {
                         "total_honeypots_created": 0,
                         "total_logs_captured": 0
                     },
+                    "invites": [],
+                    "activity_log": [],
                     "alerts": {
                         "emails": [email],
                         "preferences": {
@@ -191,6 +196,389 @@ class DatabaseCommunicator:
 
                 self._save_user_data(conn, uid, user_data)
             return {"success": True, "message": "User entry created in database"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def update_username(self, uid, username):
+        """
+        Update the stored username for a user.
+
+        Args:
+            uid (str): Firebase UID
+            username (str): Username/display name
+
+        Returns:
+            dict: Success status
+        """
+        try:
+            normalized = (username or "").strip()
+            if not normalized:
+                return {"success": False, "error": "Username is required"}
+
+            with self._transaction() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+
+                profile = user_data.setdefault("profile", {})
+                profile["username"] = normalized
+                self._save_user_data(conn, uid, user_data)
+            return {"success": True, "message": "Username updated"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_user_basic(self, uid):
+        """
+        Get basic profile info for a user.
+
+        Returns:
+            dict: user profile data
+        """
+        try:
+            with self._connect() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+
+                profile = user_data.get("profile", {})
+                return {
+                    "success": True,
+                    "uid": uid,
+                    "email": user_data.get("email"),
+                    "username": profile.get("username")
+                }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def find_uid_by_username(self, username):
+        """
+        Find a UID by username.
+
+        Args:
+            username (str): Username to search
+
+        Returns:
+            str: UID if found, else None
+        """
+        if not username:
+            return None
+        normalized = username.strip().lower()
+        try:
+            with self._connect() as conn:
+                rows = conn.execute("SELECT uid, data FROM users").fetchall()
+                for row in rows:
+                    try:
+                        user_data = json.loads(row["data"])
+                    except json.JSONDecodeError:
+                        continue
+                    profile = user_data.get("profile", {})
+                    stored = (profile.get("username") or "").strip().lower()
+                    if stored and stored == normalized:
+                        return row["uid"]
+            return None
+        except Exception:
+            return None
+
+    def list_accessible_honeypots(self, uid):
+        """
+        List honeypots owned by the user and those shared with them.
+
+        Returns:
+            dict: Mapping of honeypot_id to honeypot data
+        """
+        try:
+            with self._connect() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+
+                owned = {}
+                for hp_id, hp_data in user_data.get("honeypots", {}).items():
+                    owned[hp_id] = {
+                        **hp_data,
+                        "shared": False,
+                        "owner_uid": uid,
+                        "access_role": "owner",
+                        "can_delete": True
+                    }
+
+                shared = {}
+                rows = conn.execute("SELECT uid, data FROM users").fetchall()
+                for row in rows:
+                    owner_uid = row["uid"]
+                    if owner_uid == uid:
+                        continue
+                    try:
+                        owner_data = json.loads(row["data"])
+                    except json.JSONDecodeError:
+                        continue
+                    for hp_id, hp_data in owner_data.get("honeypots", {}).items():
+                        collaborators = hp_data.get("collaborators", {})
+                        if uid not in collaborators:
+                            continue
+                        access = collaborators.get(uid, {})
+                        shared[hp_id] = {
+                            **hp_data,
+                            "shared": True,
+                            "owner_uid": owner_uid,
+                            "access_role": access.get("role", "read"),
+                            "can_delete": bool(access.get("can_delete"))
+                        }
+
+                merged = dict(shared)
+                merged.update(owned)
+                return {"success": True, "honeypots": merged}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def resolve_honeypot_access(self, uid, honeypot_id):
+        """
+        Resolve access to a honeypot, returning owner and permissions.
+        """
+        try:
+            with self._connect() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+
+                if honeypot_id in user_data.get("honeypots", {}):
+                    return {
+                        "success": True,
+                        "owner_uid": uid,
+                        "role": "owner",
+                        "can_delete": True
+                    }
+
+                rows = conn.execute("SELECT uid, data FROM users").fetchall()
+                for row in rows:
+                    owner_uid = row["uid"]
+                    if owner_uid == uid:
+                        continue
+                    try:
+                        owner_data = json.loads(row["data"])
+                    except json.JSONDecodeError:
+                        continue
+                    honeypot = owner_data.get("honeypots", {}).get(honeypot_id)
+                    if not honeypot:
+                        continue
+                    collaborators = honeypot.get("collaborators", {})
+                    if uid in collaborators:
+                        access = collaborators.get(uid, {})
+                        return {
+                            "success": True,
+                            "owner_uid": owner_uid,
+                            "role": access.get("role", "read"),
+                            "can_delete": bool(access.get("can_delete"))
+                        }
+
+                return {"success": False, "error": "Honeypot not found or access denied"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_honeypot_with_access(self, uid, honeypot_id):
+        """
+        Get honeypot data with access context resolved.
+        """
+        access = self.resolve_honeypot_access(uid, honeypot_id)
+        if not access.get("success"):
+            return access
+
+        owner_uid = access.get("owner_uid")
+        result = self.get_honeypot(owner_uid, honeypot_id)
+        if not result.get("success"):
+            return result
+
+        return {
+            "success": True,
+            "honeypot": result.get("honeypot"),
+            "owner_uid": owner_uid,
+            "role": access.get("role"),
+            "can_delete": access.get("can_delete")
+        }
+
+    def add_invite(self, owner_uid, honeypot_id, invitee_uid, role, can_delete, invited_by_uid):
+        """
+        Invite a user to a honeypot.
+        """
+        try:
+            with self._transaction() as conn:
+                owner_data = self._load_user_data(conn, owner_uid)
+                if owner_data is None:
+                    return {"success": False, "error": "Owner not found"}
+                honeypot = owner_data.get("honeypots", {}).get(honeypot_id)
+                if not honeypot:
+                    return {"success": False, "error": "Honeypot not found"}
+
+                collaborators = honeypot.setdefault("collaborators", {})
+                if invitee_uid in collaborators:
+                    return {"success": False, "error": "User already has access"}
+
+                invitee_data = self._load_user_data(conn, invitee_uid)
+                if invitee_data is None:
+                    return {"success": False, "error": "Invitee not found"}
+
+                invites = invitee_data.setdefault("invites", [])
+                for invite in invites:
+                    if invite.get("owner_uid") == owner_uid and invite.get("honeypot_id") == honeypot_id:
+                        return {"success": False, "error": "Invite already sent"}
+
+                invites.append({
+                    "owner_uid": owner_uid,
+                    "honeypot_id": honeypot_id,
+                    "role": role,
+                    "can_delete": bool(can_delete),
+                    "invited_by": invited_by_uid,
+                    "invited_at": datetime.now().isoformat()
+                })
+
+                self._save_user_data(conn, invitee_uid, invitee_data)
+            return {"success": True, "message": "Invite sent"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def list_invites(self, uid):
+        try:
+            with self._connect() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+                return {"success": True, "invites": user_data.get("invites", [])}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def accept_invite(self, uid, owner_uid, honeypot_id):
+        try:
+            with self._transaction() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+
+                invites = user_data.get("invites", [])
+                invite = None
+                remaining = []
+                for item in invites:
+                    if item.get("owner_uid") == owner_uid and item.get("honeypot_id") == honeypot_id:
+                        invite = item
+                    else:
+                        remaining.append(item)
+                if invite is None:
+                    return {"success": False, "error": "Invite not found"}
+
+                owner_data = self._load_user_data(conn, owner_uid)
+                if owner_data is None:
+                    return {"success": False, "error": "Owner not found"}
+
+                honeypot = owner_data.get("honeypots", {}).get(honeypot_id)
+                if not honeypot:
+                    return {"success": False, "error": "Honeypot not found"}
+
+                collaborators = honeypot.setdefault("collaborators", {})
+                collaborators[uid] = {
+                    "role": invite.get("role", "read"),
+                    "can_delete": bool(invite.get("can_delete")),
+                    "added_at": datetime.now().isoformat(),
+                    "added_by": invite.get("invited_by")
+                }
+
+                user_data["invites"] = remaining
+                self._save_user_data(conn, uid, user_data)
+                self._save_user_data(conn, owner_uid, owner_data)
+            return {"success": True, "message": "Invite accepted"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def decline_invite(self, uid, owner_uid, honeypot_id):
+        try:
+            with self._transaction() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+
+                invites = user_data.get("invites", [])
+                remaining = [
+                    invite for invite in invites
+                    if not (
+                        invite.get("owner_uid") == owner_uid
+                        and invite.get("honeypot_id") == honeypot_id
+                    )
+                ]
+                user_data["invites"] = remaining
+                self._save_user_data(conn, uid, user_data)
+            return {"success": True, "message": "Invite declined"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def update_collaborator(self, owner_uid, honeypot_id, collaborator_uid, role, can_delete):
+        try:
+            with self._transaction() as conn:
+                owner_data = self._load_user_data(conn, owner_uid)
+                if owner_data is None:
+                    return {"success": False, "error": "Owner not found"}
+                honeypot = owner_data.get("honeypots", {}).get(honeypot_id)
+                if not honeypot:
+                    return {"success": False, "error": "Honeypot not found"}
+
+                collaborators = honeypot.setdefault("collaborators", {})
+                if collaborator_uid not in collaborators:
+                    return {"success": False, "error": "Collaborator not found"}
+
+                collaborators[collaborator_uid]["role"] = role
+                collaborators[collaborator_uid]["can_delete"] = bool(can_delete)
+                collaborators[collaborator_uid]["updated_at"] = datetime.now().isoformat()
+                self._save_user_data(conn, owner_uid, owner_data)
+            return {"success": True, "message": "Collaborator updated"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def remove_collaborator(self, owner_uid, honeypot_id, collaborator_uid):
+        try:
+            with self._transaction() as conn:
+                owner_data = self._load_user_data(conn, owner_uid)
+                if owner_data is None:
+                    return {"success": False, "error": "Owner not found"}
+                honeypot = owner_data.get("honeypots", {}).get(honeypot_id)
+                if not honeypot:
+                    return {"success": False, "error": "Honeypot not found"}
+
+                collaborators = honeypot.get("collaborators", {})
+                if collaborator_uid in collaborators:
+                    del collaborators[collaborator_uid]
+                self._save_user_data(conn, owner_uid, owner_data)
+            return {"success": True, "message": "Collaborator removed"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def record_activity(self, owner_uid, action, honeypot_id=None, actor_uid=None, actor_username=None, details=None):
+        try:
+            with self._transaction() as conn:
+                owner_data = self._load_user_data(conn, owner_uid)
+                if owner_data is None:
+                    return {"success": False, "error": "Owner not found"}
+
+                log = owner_data.setdefault("activity_log", [])
+                log.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "action": action,
+                    "honeypot_id": honeypot_id,
+                    "actor_uid": actor_uid,
+                    "actor_username": actor_username,
+                    "details": details or {}
+                })
+                owner_data["activity_log"] = log[-50:]
+                self._save_user_data(conn, owner_uid, owner_data)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def list_recent_activity(self, uid, limit=10):
+        try:
+            with self._connect() as conn:
+                user_data = self._load_user_data(conn, uid)
+                if user_data is None:
+                    return {"success": False, "error": "User not found"}
+
+                log = user_data.get("activity_log", [])
+                return {"success": True, "activity": list(reversed(log))[:limit]}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -350,7 +738,8 @@ class DatabaseCommunicator:
                     "active_protocols": protocols or [],
                     "is_active": False,
                     "logs": [],
-                    "log_clear_at": None
+                    "log_clear_at": None,
+                    "collaborators": {}
                 }
 
                 if extra_data:
@@ -436,7 +825,7 @@ class DatabaseCommunicator:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def update_honeypot(self, uid, honeypot_id, name=None, protocols=None, is_active=None, last_active=None, last_alert_email_sent_at=None):
+    def update_honeypot(self, uid, honeypot_id, name=None, description=None, protocols=None, is_active=None, last_active=None, last_alert_email_sent_at=None):
         """
         Update honeypot configuration.
 
@@ -444,6 +833,7 @@ class DatabaseCommunicator:
             uid (str): Firebase UID
             honeypot_id (str): Honeypot identifier
             name (str): New name (optional)
+            description (str): New description (optional)
             protocols (list): New list of protocols (optional)
             is_active (bool): Active status (optional)
             last_active (str): Last active timestamp (optional)
@@ -469,6 +859,8 @@ class DatabaseCommunicator:
 
                 if name is not None:
                     honeypots[honeypot_id]["name"] = name
+                if description is not None:
+                    honeypots[honeypot_id]["description"] = description
                 if protocols is not None:
                     honeypots[honeypot_id]["active_protocols"] = protocols
                 if is_active is not None:

@@ -22,6 +22,7 @@
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
                 <a href="/alerts/config">Alerts</a>
+                <a href="/collaboration">Collaboration</a>
                 <a href="/settings">Settings</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
@@ -75,6 +76,11 @@
                         <h3 style="font-size: 1.2rem;">{{ hp.name }}</h3>
                         <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}">{% if hp.is_active %}Active{% else %}Inactive{% endif %}</span>
                     </div>
+                    {% if hp.shared %}
+                    <div class="badge-row">
+                        <span class="badge">Shared by {{ hp.owner_username or 'Unknown' }}</span>
+                    </div>
+                    {% endif %}
                     {% if hp.description %}<p style="color: var(--muted); margin-bottom: 10px;">{{ hp.description }}</p>{% endif %}
                     <div class="meta-row">
                         <span><strong>Protocols:</strong> {{ hp.active_protocols|join(', ') if hp.active_protocols else 'None' }}</span>
@@ -85,6 +91,37 @@
                 {% endfor %}
             </div>
         </div>
+
+        {% if recent_activity %}
+        <div class="recent-activity">
+            <div class="section-title">
+                <h2>Recent changes</h2>
+                <p>Latest management actions recorded for your honeypots.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>Honeypot</th>
+                            <th>Actor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in recent_activity %}
+                        <tr>
+                            <td class="js-timestamp" data-timestamp="{{ item.timestamp or '' }}">{{ item.timestamp[:19] if item.timestamp else 'N/A' }}</td>
+                            <td>{{ item.action|replace('_', ' ')|title }}</td>
+                            <td>{{ item.honeypot_id or '-' }}</td>
+                            <td>{{ item.actor_username or 'System' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
 
         {% if recent_logs %}
         <div class="recent-logs">

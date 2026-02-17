@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaboration - {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="page">
+    <div class="shell">
+        <div class="top-bar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <div>
+                    <h1>Collaboration</h1>
+                    <p>Invite teammates and control access to each honeypot.</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/honeypots">Honeypots</a>
+                <a href="/logs">Logs</a>
+                <a href="/alerts/config">Alerts</a>
+                <a href="/collaboration">Collaboration</a>
+                <a href="/settings">Settings</a>
+                <a class="nav-primary" href="/logout">Logout</a>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="notice error" style="margin-bottom: 16px;">{{ error }}</div>
+        {% endif %}
+
+        {% if success %}
+        <div class="notice success" style="margin-bottom: 16px;">{{ success }}</div>
+        {% endif %}
+
+        <div class="card">
+            <div class="section-title">
+                <h2>Invite collaborators</h2>
+                <p>Invite by username and choose access per honeypot.</p>
+            </div>
+            <form method="POST" action="/collaboration/invite" class="form-grid">
+                <div class="form-row">
+                    <label for="username"><strong>Username</strong></label>
+                    <input type="text" id="username" name="username" required placeholder="e.g., blue-team-ops">
+                    <p class="helper-text">Invitees must have set their username in Settings.</p>
+                </div>
+                <div class="form-row">
+                    <label for="role"><strong>Access level</strong></label>
+                    <select id="role" name="role">
+                        <option value="read">Read-only</option>
+                        <option value="manage" selected>Full manage</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="can_delete">
+                        <span>Allow delete</span>
+                    </label>
+                </div>
+                <div class="form-row">
+                    <label><strong>Honeypots</strong></label>
+                    <div class="chip-grid">
+                        {% for hp_id, hp in honeypots.items() %}
+                        <label class="chip">
+                            <input type="checkbox" name="honeypot_ids" value="{{ hp_id }}">
+                            <span>{{ hp.name }} ({{ hp_id }})</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <button type="submit" class="btn">Send invite</button>
+            </form>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <div class="section-title">
+                    <h2>Incoming invites</h2>
+                    <p>Accept or decline access requests.</p>
+                </div>
+                {% if invites %}
+                <div class="table-wrap">
+                    <table class="logs-table">
+                        <thead>
+                            <tr>
+                                <th>Owner</th>
+                                <th>Honeypot</th>
+                                <th>Role</th>
+                                <th>Delete</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invite in invites %}
+                            <tr>
+                                <td>{{ invite.owner_label or 'Unknown' }}</td>
+                                <td>{{ invite.honeypot_name }}</td>
+                                <td>{{ invite.role }}</td>
+                                <td>{{ 'Yes' if invite.can_delete else 'No' }}</td>
+                                <td>
+                                    <form method="POST" action="/collaboration/invites/accept" style="display:inline;">
+                                        <input type="hidden" name="owner_uid" value="{{ invite.owner_uid }}">
+                                        <input type="hidden" name="honeypot_id" value="{{ invite.honeypot_id }}">
+                                        <button type="submit" class="btn">Accept</button>
+                                    </form>
+                                    <form method="POST" action="/collaboration/invites/decline" style="display:inline;">
+                                        <input type="hidden" name="owner_uid" value="{{ invite.owner_uid }}">
+                                        <input type="hidden" name="honeypot_id" value="{{ invite.honeypot_id }}">
+                                        <button type="submit" class="btn btn-ghost">Decline</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>No invites right now.</p>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <div class="section-title">
+                    <h2>Your collaborators</h2>
+                    <p>Review and adjust access for each honeypot.</p>
+                </div>
+                {% if honeypots %}
+                    {% for hp_id, hp in honeypots.items() %}
+                    <div class="sub-card">
+                        <h3>{{ hp.name }}</h3>
+                        {% if collaborators.get(hp_id) %}
+                        <div class="table-wrap" style="margin-top: 12px;">
+                            <table class="logs-table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Access</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for collab in collaborators.get(hp_id) %}
+                                    <tr>
+                                        <td>{{ collab.username or collab.email or collab.uid }}</td>
+                                        <td>
+                                            <form method="POST" action="/collaboration/honeypots/{{ hp_id }}/collaborators/{{ collab.uid }}/update" class="inline-form">
+                                                <select name="role">
+                                                    <option value="read" {% if collab.role == 'read' %}selected{% endif %}>Read-only</option>
+                                                    <option value="manage" {% if collab.role == 'manage' %}selected{% endif %}>Full manage</option>
+                                                </select>
+                                                <label class="checkbox-label" style="margin-left: 8px;">
+                                                    <input type="checkbox" name="can_delete" {% if collab.can_delete %}checked{% endif %}>
+                                                    <span>Delete</span>
+                                                </label>
+                                                <button type="submit" class="btn btn-ghost">Update</button>
+                                            </form>
+                                        </td>
+                                        <td>
+                                            <form method="POST" action="/collaboration/honeypots/{{ hp_id }}/collaborators/{{ collab.uid }}/remove" style="display:inline;">
+                                                <button type="submit" class="btn btn-danger">Remove</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="helper-text" style="margin-top: 8px;">No collaborators yet.</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p>Create a honeypot to invite collaborators.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -54,8 +54,15 @@ def index():
         uid = session.get('uid')
         
         # Get honeypots data
-        honeypots_result = db.list_honeypots(uid)
+        honeypots_result = db.list_accessible_honeypots(uid)
         honeypots_data = honeypots_result.get('honeypots', {}) if honeypots_result['success'] else {}
+        for hp_id, hp in honeypots_data.items():
+            if hp.get("shared"):
+                owner_profile = db.get_user_basic(hp.get("owner_uid"))
+                if owner_profile.get("success"):
+                    hp["owner_username"] = owner_profile.get("username") or owner_profile.get("email")
+                else:
+                    hp["owner_username"] = "Unknown"
         
         # Calculate statistics
         stats_result = db.get_user_stats(uid)
@@ -87,11 +94,15 @@ def index():
         scans_count = sum(1 for log in all_logs if log.get('status') == 'scan')
         infiltrations_count = sum(1 for log in all_logs if log.get('status') == 'infiltration')
         
+        activity_result = db.list_recent_activity(uid, limit=8)
+        recent_activity = activity_result.get("activity", []) if activity_result.get("success") else []
+
         return render_template('dashboard.html',
                              total_honeypots=total_honeypots,
                              active_honeypots=active_honeypots,
                              total_logs=total_logs,
                              recent_logs=recent_logs,
+                     recent_activity=recent_activity,
                              honeypots=honeypots_data,
                              protocol_count=protocol_count,
                              scans_count=scans_count,
@@ -122,7 +133,7 @@ def dashboard_data():
         return jsonify({"success": False, "error": "Unauthorized"}), 401
 
     uid = session.get('uid')
-    honeypots_result = db.list_honeypots(uid)
+    honeypots_result = db.list_accessible_honeypots(uid)
     honeypots_data = honeypots_result.get('honeypots', {}) if honeypots_result['success'] else {}
     total_honeypots = len(honeypots_data)
     active_honeypots = sum(1 for hp in honeypots_data.values() if hp.get('is_active', False))
@@ -156,6 +167,9 @@ def dashboard_data():
     scans_count = sum(1 for log in all_logs if log.get('status') == 'scan')
     infiltrations_count = sum(1 for log in all_logs if log.get('status') == 'infiltration')
 
+    activity_result = db.list_recent_activity(uid, limit=8)
+    recent_activity = activity_result.get("activity", []) if activity_result.get("success") else []
+
     return jsonify({
         "success": True,
         "stats": {
@@ -167,6 +181,7 @@ def dashboard_data():
         },
         "protocol_count": protocol_count,
         "recent_logs": recent_logs,
+        "recent_activity": recent_activity,
         "honeypots": honeypot_cards
     })
 

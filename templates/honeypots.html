@@ -21,6 +21,7 @@
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
                 <a href="/alerts/config">Alerts</a>
+                <a href="/collaboration">Collaboration</a>
                 <a href="/settings">Settings</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
@@ -63,10 +64,17 @@
         {% if honeypots %}
             <div class="card-list">
                 {% for hp_id, hp in honeypots.items() %}
+                {% set can_manage = hp.access_role in ['owner', 'manage'] %}
+                {% set can_delete = hp.can_delete or hp.access_role == 'owner' %}
                 <div class="honeypot-card" data-honeypot-id="{{ hp_id }}">
                     <div class="honeypot-header">
                         <div>
                             <h3>{{ hp.name }}</h3>
+                            {% if hp.shared %}
+                            <div class="badge-row">
+                                <span class="badge">Shared by {{ hp.owner_username or 'Unknown' }}</span>
+                            </div>
+                            {% endif %}
                             {% if hp.description %}
                             <p style="color: var(--muted); margin-top: 6px;">{{ hp.description }}</p>
                             {% endif %}
@@ -80,8 +88,9 @@
                         <span><strong>Logs:</strong> <span id="hp-logs-{{ hp_id }}">{{ hp.logs|length }}</span></span>
                     </div>
                     <div class="honeypot-actions">
-                        <button class="btn" type="button" onclick="toggleEdit('{{ hp_id }}')">Edit</button>
+                        <button class="btn" type="button" onclick="toggleEdit('{{ hp_id }}')" {% if not can_manage %}disabled{% endif %}>Edit</button>
                         <a href="/logs?honeypot_id={{ hp_id }}"><button type="button" class="btn btn-success">View Logs</button></a>
+                        {% if can_delete %}
                         <form method="POST" action="/honeypots/{{ hp_id }}/delete" style="display:inline;">
                             <div class="confirm-host">
                                 <button type="button" class="btn btn-danger" onclick="toggleConfirm('delete-{{ hp_id }}')">Delete</button>
@@ -92,7 +101,9 @@
                                 </div>
                             </div>
                         </form>
+                        {% endif %}
                     </div>
+                    {% if can_manage %}
                     <div class="edit-form" id="edit-{{ hp_id }}">
                         <h4>Edit Honeypot</h4>
                         <form method="POST" action="/honeypots/{{ hp_id }}/update" class="form-grid">
@@ -145,6 +156,7 @@
                             </div>
                         </form>
                     </div>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>

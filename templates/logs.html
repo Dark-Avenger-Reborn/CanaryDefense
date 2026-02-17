@@ -21,6 +21,7 @@
                 <a href="/honeypots">Honeypots</a>
                 <a href="/logs">Logs</a>
                 <a href="/alerts/config">Alerts</a>
+                <a href="/collaboration">Collaboration</a>
                 <a href="/settings">Settings</a>
                 <a class="nav-primary" href="/logout">Logout</a>
             </div>
@@ -45,13 +46,14 @@
                     <option value="">-- Choose a Honeypot --</option>
                     {% for hp_id, hp in honeypots.items() %}
                     <option value="{{ hp_id }}" {% if hp_id == selected_honeypot_id %}selected{% endif %}>
-                        {{ hp.name }} ({{ hp_id }})
+                        {{ hp.name }} ({{ hp_id }}){% if hp.shared %} - shared by {{ hp.owner_username or 'Unknown' }}{% endif %}
                     </option>
                     {% endfor %}
                 </select>
             </div>
             {% if selected_honeypot_id %}
             <div style="margin-top: 12px;">
+                {% if selected_can_manage %}
                 <form method="POST" action="/logs/{{ selected_honeypot_id }}/clear" style="display:inline;">
                     <div class="confirm-host">
                         <button type="button" class="btn btn-danger btn-wide" onclick="toggleConfirm('clear-logs')">Clear all logs</button>
@@ -62,6 +64,7 @@
                         </div>
                     </div>
                 </form>
+                {% endif %}
             </div>
             {% endif %}
         </div>
