@@ -123,15 +123,21 @@ ensure_user_and_dirs() {
 install_python_packages() {
 	# Skip pip upgrade to avoid conflicts
 	
+	# Check if pip supports --break-system-packages flag (pip >= 22.1)
+	local pip_flags=""
+	if python3 -m pip install --help 2>/dev/null | grep -q -- '--break-system-packages'; then
+		pip_flags="--break-system-packages"
+	fi
+	
 	# Install packages using --ignore-installed to avoid conflicts with system packages
 	echo "Installing Python packages..."
 	
 	# Install each package separately with better error handling
 	for package in "honeypots" "python-socketio" "websocket-client" "twisted"; do
 		echo "Installing $package..."
-		if ! python3 -m pip install --break-system-packages --no-warn-script-location "$package"; then
+		if ! python3 -m pip install $pip_flags --no-warn-script-location "$package"; then
 			echo "Failed to install $package. Retrying with --ignore-installed..."
-			python3 -m pip install --break-system-packages --ignore-installed --no-warn-script-location "$package"
+			python3 -m pip install $pip_flags --ignore-installed --no-warn-script-location "$package"
 		fi
 	done
 	
