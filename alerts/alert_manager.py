@@ -144,41 +144,80 @@ def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
     )
 
 
+def _get_honeypot_alert_recipients(owner_uid: str, honeypot_id: str) -> dict:
+    """
+    Get all users who should receive alerts for a honeypot.
+    Returns a dict of {uid: {emails: [...], preferences: {...}}}
+    """
+    recipients = {}
+    
+    # Get owner's alert settings
+    owner_data = _db.get_user_entry(owner_uid)
+    if owner_data.get("success"):
+        owner_alerts = owner_data.get("data", {}).get("alerts", {})
+        owner_prefs = owner_alerts.get("preferences", {})
+        if owner_prefs.get("alert_on_suspicious_activity", False) or owner_prefs.get("alert_on_honeypot_down", False):
+            recipients[owner_uid] = {
+                "emails": owner_alerts.get("emails", []),
+                "preferences": owner_prefs
+            }
+    
+    # Get collaborators' alert settings
+    honeypot_data = _db.get_honeypot(owner_uid, honeypot_id)
+    if honeypot_data.get("success"):
+        collaborators = honeypot_data.get("honeypot", {}).get("collaborators", {})
+        for collab_uid in collaborators:
+            collab_data = _db.get_user_entry(collab_uid)
+            if collab_data.get("success"):
+                collab_alerts = collab_data.get("data", {}).get("alerts", {})
+                collab_prefs = collab_alerts.get("preferences", {})
+                # Check if collaborator has enabled alerts for shared honeypots
+                if collab_prefs.get("alert_on_suspicious_activity", False) or collab_prefs.get("alert_on_honeypot_down", False):
+                    recipients[collab_uid] = {
+                        "emails": collab_alerts.get("emails", []),
+                        "preferences": collab_prefs
+                    }
+    
+    return recipients
+
+
 def _send_activity_email(uid: str, honeypot_id: str, logs: List[dict]):
-    user_data = _db.get_user_entry(uid)
-    if not user_data.get("success"):
-        return
-
-    alerts = user_data.get("data", {}).get("alerts", {})
-    preferences = alerts.get("preferences", {})
-    if not preferences.get("alert_on_suspicious_activity", False):
-        return
-
-    # Get the timestamp of the last email sent for this honeypot
-    last_email_time = _db.get_last_alert_email_time(uid, honeypot_id)
+    """Send activity emails to owner and all collaborators who have alerts enabled."""
+    recipients_info = _get_honeypot_alert_recipients(uid, honeypot_id)
     
-    # Filter logs to only include those after the last email timestamp
-    if last_email_time:
-        filtered_logs = [
-            log for log in logs
-            if log.get("timestamp", "") > last_email_time
-        ]
-    else:
-        filtered_logs = logs
-    
-    # Only send email if there are new logs
-    if not filtered_logs:
-        return
+    for recipient_uid, recipient_data in recipients_info.items():
+        prefs = recipient_data.get("preferences", {})
+        if not prefs.get("alert_on_suspicious_activity", False):
+            continue
+        
+        # Get the timestamp of the last email sent for this honeypot
+        last_email_time = _db.get_last_alert_email_time(recipient_uid, honeypot_id)
+        
+        # Filter logs to only include those after the last email timestamp
+        if last_email_time:
+            filtered_logs = [
+                log for log in logs
+                if log.get("timestamp", "") > last_email_time
+            ]
+        else:
+            filtered_logs = logs
+        
+        # Only send email if there are new logs
+        if not filtered_logs:
+            continue
 
-    recipients = alerts.get("emails", [])
-    subject = f"Honeypot activity detected: {honeypot_id}"
-    body = _build_activity_body(uid, honeypot_id, filtered_logs)
-    html_body = _build_activity_html(uid, honeypot_id, filtered_logs)
-    success, message = send_email(recipients, subject, body, html_body)
-    
-    # Update the last email timestamp only if the email was sent successfully
-    if success:
-        _db.update_last_alert_email_time(uid, honeypot_id)
+        recipients = recipient_data.get("emails", [])
+        if not recipients:
+            continue
+        
+        subject = f"Honeypot activity detected: {honeypot_id}"
+        body = _build_activity_body(recipient_uid, honeypot_id, filtered_logs)
+        html_body = _build_activity_html(recipient_uid, honeypot_id, filtered_logs)
+        success, message = send_email(recipients, subject, body, html_body)
+        
+        # Update the last email timestamp only if the email was sent successfully
+        if success:
+            _db.update_last_alert_email_time(recipient_uid, honeypot_id)
 
 
 def _finalize_pending(key: Tuple[str, str]):
@@ -212,47 +251,48 @@ def record_suspicious_activity(uid: str, honeypot_id: str, log_entry: dict):
 
 
 def notify_honeypot_down(uid: str, honeypot_id: str):
-    """Immediately send a honeypot-down alert if enabled."""
-    user_data = _db.get_user_entry(uid)
-    if not user_data.get("success"):
-        return
-
-    alerts = user_data.get("data", {}).get("alerts", {})
-    preferences = alerts.get("preferences", {})
-    if not preferences.get("alert_on_honeypot_down", False):
-        return
-
-    recipients = alerts.get("emails", [])
+    """Immediately send a honeypot-down alert to owner and collaborators if enabled."""
+    recipients_info = _get_honeypot_alert_recipients(uid, honeypot_id)
+    
     honeypot_result = _db.get_honeypot(uid, honeypot_id)
     honeypot_name = honeypot_result.get("honeypot", {}).get("name", honeypot_id) if honeypot_result.get("success") else honeypot_id
 
-    subject = f"Honeypot down: {honeypot_name}"
-    body = (
-        f"The honeypot '{honeypot_name}' (ID: {honeypot_id}) was marked inactive.\n"
-        "Please check the honeypot or restart it if this is unexpected."
-    )
-    html_body = (
-        "<div style=\"margin:0;padding:0;background-color:#f3f4f6;\">"
-        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background-color:#f3f4f6;padding:24px 0;\">"
-        "<tr><td align=\"center\">"
-        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"640\" style=\"width:640px;max-width:92vw;background-color:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111827;\">"
-        "<tr><td style=\"background:linear-gradient(120deg,#991b1b,#dc2626);padding:18px 24px;\">"
-        "<div style=\"font-size:18px;font-weight:600;color:#ffffff;\">Honeypot down</div>"
-        "<div style=\"font-size:13px;color:#fee2e2;margin-top:6px;\">Immediate attention required</div>"
-        "</td></tr>"
-        "<tr><td style=\"padding:20px 24px;\">"
-        f"<div style=\"font-size:14px;margin-bottom:10px;\"><strong>Honeypot:</strong> {html.escape(str(honeypot_name))}</div>"
-        f"<div style=\"font-size:14px;margin-bottom:16px;\"><strong>ID:</strong> {html.escape(str(honeypot_id))}</div>"
-        "<div style=\"font-size:14px;color:#374151;\">The honeypot was marked inactive. Please check the honeypot or restart it if this is unexpected.</div>"
-        "</td></tr>"
-        "<tr><td style=\"padding:16px 24px 24px 24px;color:#6b7280;font-size:12px;\">"
-        "You are receiving this alert because honeypot-down alerts are enabled in your settings."
-        "</td></tr>"
-        "</table>"
-        "</td></tr>"
-        "</table>"
-        "</div>"
-    )
-    send_email(recipients, subject, body, html_body)
+    for recipient_uid, recipient_data in recipients_info.items():
+        prefs = recipient_data.get("preferences", {})
+        if not prefs.get("alert_on_honeypot_down", False):
+            continue
+        
+        recipients = recipient_data.get("emails", [])
+        if not recipients:
+            continue
+
+        subject = f"Honeypot down: {honeypot_name}"
+        body = (
+            f"The honeypot '{honeypot_name}' (ID: {honeypot_id}) was marked inactive.\n"
+            "Please check the honeypot or restart it if this is unexpected."
+        )
+        html_body = (
+            "<div style=\"margin:0;padding:0;background-color:#f3f4f6;\">"
+            "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background-color:#f3f4f6;padding:24px 0;\">"
+            "<tr><td align=\"center\">"
+            "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"640\" style=\"width:640px;max-width:92vw;background-color:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#111827;\">"
+            "<tr><td style=\"background:linear-gradient(120deg,#991b1b,#dc2626);padding:18px 24px;\">"
+            "<div style=\"font-size:18px;font-weight:600;color:#ffffff;\">Honeypot down</div>"
+            "<div style=\"font-size:13px;color:#fee2e2;margin-top:6px;\">Immediate attention required</div>"
+            "</td></tr>"
+            "<tr><td style=\"padding:20px 24px;\">"
+            f"<div style=\"font-size:14px;margin-bottom:10px;\"><strong>Honeypot:</strong> {html.escape(str(honeypot_name))}</div>"
+            f"<div style=\"font-size:14px;margin-bottom:16px;\"><strong>ID:</strong> {html.escape(str(honeypot_id))}</div>"
+            "<div style=\"font-size:14px;color:#374151;\">The honeypot was marked inactive. Please check the honeypot or restart it if this is unexpected.</div>"
+            "</td></tr>"
+            "<tr><td style=\"padding:16px 24px 24px 24px;color:#6b7280;font-size:12px;\">"
+            "You are receiving this alert because honeypot-down alerts are enabled in your settings."
+            "</td></tr>"
+            "</table>"
+            "</td></tr>"
+            "</table>"
+            "</div>"
+        )
+        send_email(recipients, subject, body, html_body)
 
 
