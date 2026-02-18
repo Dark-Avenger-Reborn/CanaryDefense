@@ -5,7 +5,7 @@ from auth.extensions import limiter
 from database.routes import database_bp
 from database.database_communicator import DatabaseCommunicator
 from honeypot.routes import honeypot_bp, honeypot_api_bp
-from honeypot.honeypot_to_db_routes import socketio
+from honeypot.honeypot_to_db_routes import socketio, authenticated_honeypots
 import os
 
 app = Flask(__name__)
@@ -84,11 +84,15 @@ def index():
         all_logs.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
         recent_logs = all_logs[:10]  # Get 10 most recent
         
-        # Protocol distribution
+        # Get actually connected honeypot IDs
+        connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
+        
+        # Protocol distribution (only actually connected honeypots)
         protocol_count = {}
-        for hp in honeypots_data.values():
-            for protocol in hp.get('active_protocols', []):
-                protocol_count[protocol] = protocol_count.get(protocol, 0) + 1
+        for hp_id, hp in honeypots_data.items():
+            if hp.get('is_active', False) and hp_id in connected_honeypot_ids:
+                for protocol in hp.get('active_protocols', []):
+                    protocol_count[protocol] = protocol_count.get(protocol, 0) + 1
         
         # Attack type distribution for logs
         scans_count = sum(1 for log in all_logs if log.get('status') == 'scan')
@@ -144,6 +148,9 @@ def dashboard_data():
     active_honeypots = sum(1 for hp in honeypots_data.values() if hp.get('is_active', False))
     total_logs = sum(len(hp.get('logs', [])) for hp in honeypots_data.values())
 
+    # Get actually connected honeypot IDs
+    connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
+
     all_logs = []
     protocol_count = {}
     honeypot_cards = []
@@ -158,8 +165,9 @@ def dashboard_data():
             "logs_count": len(hp.get('logs', [])),
             "last_active": hp.get('last_active')
         })
-        for protocol in hp.get('active_protocols', []):
-            protocol_count[protocol] = protocol_count.get(protocol, 0) + 1
+        if hp.get('is_active', False) and hp_id in connected_honeypot_ids:
+            for protocol in hp.get('active_protocols', []):
+                protocol_count[protocol] = protocol_count.get(protocol, 0) + 1
         for log in hp.get('logs', []):
             log_copy = dict(log)
             log_copy['honeypot_id'] = hp_id
