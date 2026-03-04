@@ -305,11 +305,6 @@ setup_systemd() {
 		return 1
 	fi
 
-	local exec_start_pre=""
-	if [[ "$MAP_PORTS" = "yes" ]]; then
-		exec_start_pre="ExecStartPre=$INSTALL_DIR/port-map.sh"
-	fi
-
 	cat <<EOF > /etc/systemd/system/honeypot-client.service
 [Unit]
 Description=Honeypot client
@@ -322,7 +317,6 @@ StartLimitBurst=5
 Type=simple
 User=$HONEYPOT_USER
 WorkingDirectory=$INSTALL_DIR
-$exec_start_pre
 ExecStartPre=/usr/bin/test -f $INSTALL_DIR/config.json
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONNOUSERSITE=1
@@ -356,22 +350,6 @@ EOF
 setup_cron() {
 	local cron_line="@reboot PYTHONNOUSERSITE=1 /usr/bin/python3 -s $INSTALL_DIR/honeypot_client.py >> $INSTALL_DIR/client.log 2>&1"
 	(crontab -u "$HONEYPOT_USER" -l 2>/dev/null | grep -v "honeypot_client.py" || true; echo "$cron_line") | crontab -u "$HONEYPOT_USER" -
-
-	if [[ "$MAP_PORTS" = "yes" ]]; then
-		local map_line="@reboot $INSTALL_DIR/port-map.sh"
-		(crontab -l 2>/dev/null | grep -v "port-map.sh" || true; echo "$map_line") | crontab -
-	fi
-}
-
-apply_port_mapping_now() {
-	if [[ "$MAP_PORTS" != "yes" ]]; then
-		return
-	fi
-	if command -v iptables >/dev/null 2>&1; then
-		"$INSTALL_DIR/port-map.sh"
-	else
-		echo "iptables not available; skipping port mapping." >&2
-	fi
 }
 
 main() {
@@ -387,7 +365,6 @@ main() {
 	download_client_files
 	write_port_map_script
 	write_config
-	apply_port_mapping_now
 
 	if ! setup_systemd; then
 		echo "systemd not available. Falling back to cron @reboot." >&2
@@ -397,7 +374,8 @@ main() {
 	echo "Honeypot client installed in $INSTALL_DIR"
 	echo "Config: $INSTALL_DIR/config.json"
 	if [[ "$MAP_PORTS" = "yes" ]]; then
-		echo "Port mapping enabled. Low ports redirect to high ports via iptables."
+		echo "Port mapping script created: $INSTALL_DIR/port-map.sh"
+		echo "Run it manually as root when you want to apply iptables redirects."
 	else
 		echo "Port mapping disabled. Connect to the high ports in config.json."
 	fi
