@@ -2,6 +2,18 @@
 <html lang="en">
 <head>
     <title>Login - {{ brand_name }}</title>
+    <script>
+        (function () {
+            try {
+                const savedTheme = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+                document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#f7fafc';
+            } catch (error) {}
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body class="page">
@@ -17,6 +29,7 @@
             <div class="nav">
                 <a href="/">Home</a>
                 <a class="nav-primary" href="{{ url_for('auth.create_account') }}">Create account</a>
+                <button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
             </div>
         </div>
 
@@ -41,4 +54,5 @@
         </div>
     </div>
 </body>
+<script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
 </html>

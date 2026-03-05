@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Honeypots - {{ brand_name }}</title>
+    <script>
+        (function () {
+            try {
+                const savedTheme = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+                document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#f7fafc';
+            } catch (error) {}
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body class="page">
@@ -24,6 +36,7 @@
                 <a href="/collaboration">Collaboration</a>
                 <a href="/settings">Settings</a>
                 <a class="nav-primary" href="/logout">Logout</a>
+                <button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
             </div>
         </div>
 
@@ -69,15 +82,13 @@
                 <div class="honeypot-card" data-honeypot-id="{{ hp_id }}">
                     <div class="honeypot-header">
                         <div>
-                            <h3>{{ hp.name }}</h3>
+                            <h3 id="hp-name-{{ hp_id }}">{{ hp.name }}</h3>
                             {% if hp.shared %}
                             <div class="badge-row">
                                 <span class="badge">Shared by {{ hp.owner_email or 'Unknown' }}</span>
                             </div>
                             {% endif %}
-                            {% if hp.description %}
-                            <p style="color: var(--muted); margin-top: 6px;">{{ hp.description }}</p>
-                            {% endif %}
+                            <p id="hp-description-{{ hp_id }}" style="color: var(--muted); margin-top: 6px;">{{ hp.description or 'No description provided.' }}</p>
                         </div>
                         <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}" id="hp-status-{{ hp_id }}">
                             {% if hp.is_active %}Active{% else %}Inactive{% endif %}
@@ -185,6 +196,32 @@
 
     <script>
         const REFRESH_INTERVAL_MS = 4000;
+
+        function getEditingHoneypotIds() {
+            const editingIds = new Set();
+
+            document.querySelectorAll('.edit-form.active').forEach((editForm) => {
+                const card = editForm.closest('.honeypot-card');
+                const hpId = card?.getAttribute('data-honeypot-id');
+                if (hpId) {
+                    editingIds.add(hpId);
+                }
+            });
+
+            const activeElement = document.activeElement;
+            const activeCard = activeElement?.closest?.('.honeypot-card');
+            const focusedHpId = activeCard?.getAttribute('data-honeypot-id');
+            if (focusedHpId) {
+                editingIds.add(focusedHpId);
+            }
+
+            return editingIds;
+        }
+
+        function isEditingInProgress() {
+            return getEditingHoneypotIds().size > 0;
+        }
+
         function toggleEdit(honeypotId) {
             const editForm = document.getElementById('edit-' + honeypotId);
             editForm.classList.toggle('active');
@@ -213,6 +250,7 @@
         const createNotice = document.getElementById('honeypot-create-notice');
         const installModal = document.getElementById('install-modal');
         const installCommandEl = document.getElementById('install-command');
+        const lastConfigSignatures = new Map();
         let installModalOpen = false;
 
         function openInstallModal(command) {
@@ -340,7 +378,43 @@
                 .filter(Boolean);
         }
 
-        function updateHoneypotCard(hpId, hp) {
+        function getConfigSignature(hp) {
+            const protocols = Array.isArray(hp.active_protocols) ? [...hp.active_protocols].sort() : [];
+            return JSON.stringify({
+                name: hp.name || '',
+                description: hp.description || '',
+                is_active: Boolean(hp.is_active),
+                active_protocols: protocols
+            });
+        }
+
+        function syncEditInputs(hpId, hp) {
+            const nameInput = document.getElementById(`name-${hpId}`);
+            if (nameInput) {
+                nameInput.value = hp.name || '';
+            }
+
+            const descriptionInput = document.getElementById(`description-${hpId}`);
+            if (descriptionInput) {
+                descriptionInput.value = hp.description || '';
+            }
+
+            updateProtocolInputs(hpId, hp.is_active, hp.active_protocols || []);
+        }
+
+        function updateHoneypotCard(hpId, hp, options = {}) {
+            const { syncFormValues = true } = options;
+
+            const nameEl = document.getElementById(`hp-name-${hpId}`);
+            if (nameEl) {
+                nameEl.textContent = hp.name || hpId;
+            }
+
+            const descriptionEl = document.getElementById(`hp-description-${hpId}`);
+            if (descriptionEl) {
+                descriptionEl.textContent = hp.description || 'No description provided.';
+            }
+
             const statusEl = document.getElementById(`hp-status-${hpId}`);
             if (statusEl) {
                 statusEl.textContent = hp.is_active ? 'Active' : 'Inactive';
@@ -359,7 +433,9 @@
                 protocolsEl.textContent = protocols.length ? protocols.join(', ') : 'None';
             }
 
-            updateProtocolInputs(hpId, hp.is_active, hp.active_protocols || []);
+            if (syncFormValues) {
+                syncEditInputs(hpId, hp);
+            }
 
             const logsEl = document.getElementById(`hp-logs-${hpId}`);
             if (logsEl) {
@@ -383,6 +459,7 @@
             if (document.visibilityState === 'hidden') {
                 return;
             }
+            const editingIds = getEditingHoneypotIds();
             try {
                 const response = await fetch('/api/honeypots', { cache: 'no-store' });
                 const payload = await response.json();
@@ -398,7 +475,20 @@
                     }
                     return;
                 }
-                serverIds.forEach((hpId) => updateHoneypotCard(hpId, honeypots[hpId]));
+                serverIds.forEach((hpId) => {
+                    const hp = honeypots[hpId];
+                    const currentSignature = getConfigSignature(hp);
+                    const previousSignature = lastConfigSignatures.get(hpId);
+                    const configChanged = previousSignature !== undefined && previousSignature !== currentSignature;
+
+                    lastConfigSignatures.set(hpId, currentSignature);
+
+                    if (editingIds.has(hpId) && !configChanged) {
+                        return;
+                    }
+
+                    updateHoneypotCard(hpId, hp, { syncFormValues: true });
+                });
             } catch (error) {
                 console.warn('Honeypots refresh failed', error);
             }
@@ -409,5 +499,6 @@
         setInterval(refreshHoneypots, REFRESH_INTERVAL_MS);
 
     </script>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
 </body>
 </html>

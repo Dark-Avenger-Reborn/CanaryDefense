@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity History - {{ brand_name }}</title>
+    <script>
+        (function () {
+            try {
+                const savedTheme = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+                document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#f7fafc';
+            } catch (error) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <style>
+        .filter-controls {
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            align-items: stretch;
+        }
+
+        .filter-form {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-form input,
+        .filter-form select,
+        .filter-form button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--ink);
+            font-size: 0.875rem;
+        }
+
+        .filter-form input {
+            min-width: 220px;
+            flex: 1;
+        }
+
+        .filter-form input[name="q"] {
+            border: 2px solid var(--accent);
+        }
+
+        .filter-form select,
+        .filter-form button,
+        .filter-controls .btn,
+        .filter-chip {
+            border-width: 2px;
+        }
+
+        .filter-form select option {
+            background: var(--surface-2);
+            color: var(--ink);
+        }
+
+        .filter-form button,
+        .filter-form select {
+            cursor: pointer;
+        }
+
+        .filter-form input:focus,
+        .filter-form select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--ring);
+        }
+
+        .quick-filters {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--ink);
+            text-decoration: none;
+            font-size: 0.8rem;
+            background: var(--surface-2);
+        }
+
+        .filter-chip:hover {
+            border-color: var(--accent);
+        }
+
+        .filter-chip.active {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination a,
+        .pagination span {
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border);
+            text-decoration: none;
+            color: var(--ink);
+        }
+
+        .pagination a:hover {
+            background: var(--surface-2);
+            border-color: var(--accent);
+        }
+
+        .pagination .active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .pagination .disabled {
+            color: var(--muted);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .activity-stats {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--surface-2);
+            border-radius: 0.375rem;
+            border: 1px solid var(--border);
+        }
+
+        .activity-stats .stat-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .activity-stats .stat-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .action-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .action-badge.created {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .action-badge.updated {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .action-badge.deleted {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .action-badge.activated {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .action-badge.deactivated {
+            background: rgba(168, 85, 247, 0.2);
+            color: #a855f7;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--muted);
+        }
+
+        .empty-state p {
+            margin: 0;
+        }
+
+        @media (max-width: 768px) {
+            .filter-controls {
+                gap: 0.75rem;
+            }
+
+            .filter-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-form input,
+            .filter-form select,
+            .filter-form button,
+            .filter-controls .btn {
+                width: 100%;
+            }
+
+            .logs-table {
+                font-size: 0.85rem;
+            }
+
+            .logs-table th,
+            .logs-table td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body class="page">
+    <div class="shell">
+        <div class="top-bar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <div>
+                    <h1>Activity History</h1>
+                    <p>Complete record of management actions and activities.</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/honeypots">Honeypots</a>
+                <a href="/logs">Logs</a>
+                <a href="/alerts/config">Alerts</a>
+                <a href="/collaboration">Collaboration</a>
+                <a href="/settings">Settings</a>
+                <a class="nav-primary" href="/logout">Logout</a>
+                <button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="activity-stats">
+                <div class="stat-line">
+                    <span>Total activities shown:</span>
+                    <strong>{{ total_items }}</strong>
+                </div>
+                <div class="stat-line">
+                    <span>Items per page:</span>
+                    <strong>{{ per_page }}</strong>
+                </div>
+                {% if action_filter %}
+                <div class="stat-line">
+                    <span>Filter:</span>
+                    <strong>{{ action_filter|replace('_', ' ')|title }}</strong>
+                </div>
+                {% endif %}
+                {% if query_filter %}
+                <div class="stat-line">
+                    <span>Search:</span>
+                    <strong>{{ query_filter }}</strong>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="filter-controls">
+                <form method="get" class="filter-form">
+                    <input type="text" name="q" value="{{ query_filter }}" placeholder="Search by honeypot, actor, or action">
+                    <select id="action" name="action">
+                        <option value="">All actions</option>
+                        {% for action_key, action_label in action_options %}
+                        <option value="{{ action_key }}" {% if action_filter == action_key %}selected{% endif %}>{{ action_label }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="per_page">
+                        <option value="10" {% if per_page == 10 %}selected{% endif %}>10 / page</option>
+                        <option value="20" {% if per_page == 20 %}selected{% endif %}>20 / page</option>
+                        <option value="50" {% if per_page == 50 %}selected{% endif %}>50 / page</option>
+                    </select>
+                    <button type="submit">Apply</button>
+                </form>
+                <a href="{{ url_for('activity_history') }}" class="btn btn-ghost">Clear Filters</a>
+
+                <div class="quick-filters">
+                    <a class="filter-chip {% if not action_filter %}active{% endif %}" href="{{ url_for('activity_history', q=query_filter, per_page=per_page) }}">All</a>
+                    {% for action_key, action_label in action_options %}
+                    <a class="filter-chip {% if action_filter == action_key %}active{% endif %}" href="{{ url_for('activity_history', action=action_key, q=query_filter, per_page=per_page) }}">{{ action_label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if activity %}
+            <div class="table-wrap">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>Honeypot</th>
+                            <th>Actor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in activity %}
+                        <tr>
+                            <td class="js-timestamp" data-timestamp="{{ item.timestamp or '' }}">{{ item.timestamp[:19] if item.timestamp else 'N/A' }}</td>
+                            <td>
+                                <span class="action-badge {{ item.action_style }}">
+                                    {{ item.action_label }}
+                                </span>
+                            </td>
+                            <td>{{ item.honeypot_name or item.honeypot_id or '-' }}</td>
+                            <td>{{ item.actor_username or 'System' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% if page > 1 %}
+                <a href="{{ url_for('activity_history', page=1, action=action_filter, q=query_filter, per_page=per_page) }}">« First</a>
+                <a href="{{ url_for('activity_history', page=page-1, action=action_filter, q=query_filter, per_page=per_page) }}">‹ Prev</a>
+                {% else %}
+                <span class="disabled">« First</span>
+                <span class="disabled">‹ Prev</span>
+                {% endif %}
+
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p >= page - 2 and p <= page + 2 %}
+                    {% if p == page %}
+                    <span class="active">{{ p }}</span>
+                    {% else %}
+                    <a href="{{ url_for('activity_history', page=p, action=action_filter, q=query_filter, per_page=per_page) }}">{{ p }}</a>
+                    {% endif %}
+                    {% endif %}
+                {% endfor %}
+
+                {% if page < total_pages %}
+                <a href="{{ url_for('activity_history', page=page+1, action=action_filter, q=query_filter, per_page=per_page) }}">Next ›</a>
+                <a href="{{ url_for('activity_history', page=total_pages, action=action_filter, q=query_filter, per_page=per_page) }}">Last »</a>
+                {% else %}
+                <span class="disabled">Next ›</span>
+                <span class="disabled">Last »</span>
+                {% endif %}
+            </div>
+            <div style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                Page {{ page }} of {{ total_pages }}
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="empty-state">
+                <p>No activities found.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script>
+        document.querySelectorAll('.js-timestamp').forEach(el => {
+            const timestamp = el.getAttribute('data-timestamp');
+            if (timestamp) {
+                try {
+                    const dt = new Date(timestamp + 'Z');
+                    el.textContent = dt.toLocaleString();
+                } catch (e) {}
+            }
+        });
+    </script>
+</body>
+</html>

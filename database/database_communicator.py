@@ -529,7 +529,7 @@ class DatabaseCommunicator:
                     "actor_username": actor_username,
                     "details": details or {}
                 })
-                owner_data["activity_log"] = log[-50:]
+                owner_data["activity_log"] = log[-200:]
                 self._save_user_data(conn, owner_uid, owner_data)
             return {"success": True}
         except Exception as e:

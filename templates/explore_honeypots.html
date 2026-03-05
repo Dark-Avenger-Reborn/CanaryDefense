@@ -4,6 +4,18 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Explore Honeypots - {{ brand_name }}</title>
+	<script>
+		(function () {
+			try {
+				const savedTheme = localStorage.getItem('theme');
+				const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+				const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+				document.documentElement.setAttribute('data-theme', theme);
+				document.documentElement.style.colorScheme = theme;
+				document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#f7fafc';
+			} catch (error) {}
+		})();
+	</script>
 	<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 	<style>
 		.section-divider {
@@ -324,6 +336,7 @@
 				<a href="/">Home</a>
 				<a class="nav-primary" href="/login">Login</a>
 				<a href="/create_account">Create account</a>
+				<button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
 			</div>
 		</div>
 
@@ -759,5 +772,6 @@
 
 		setInterval(refreshPublicCounts, REFRESH_INTERVAL_MS);
 	</script>
+	<script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
 </body>
 </html>

@@ -1,0 +1,3 @@
+tagline:Threat telemetry, simplified response.
+hero_heading:Turn every probe into actionable intel with
+hero_subheading:Orchestrate decoys, map protocols, and capture attacker behavior in a single command center built for response teams.

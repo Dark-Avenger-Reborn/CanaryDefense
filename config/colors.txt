@@ -1,0 +1,5 @@
+primary:#0f766e
+secondary:#f59e0b
+accent:#0ea5e9
+danger:#e11d48
+success:#16a34a

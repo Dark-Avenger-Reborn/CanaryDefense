@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - {{ brand_name }}</title>
+    <script>
+        (function () {
+            try {
+                const savedTheme = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+                document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#f7fafc';
+            } catch (error) {}
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -25,6 +37,7 @@
                 <a href="/collaboration">Collaboration</a>
                 <a href="/settings">Settings</a>
                 <a class="nav-primary" href="/logout">Logout</a>
+                <button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
             </div>
         </div>
 
@@ -79,9 +92,9 @@
             </div>
             <div class="honeypot-grid" id="honeypot-grid">
                 {% for hp_id, hp in honeypots.items() %}
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                        <h3 style="font-size: 1.2rem;">{{ hp.name }}</h3>
+                <div class="card honeypot-summary-card">
+                    <div class="honeypot-summary-header">
+                        <h3>{{ hp.name }}</h3>
                         <span class="status-pill {% if hp.is_active %}active{% else %}inactive{% endif %}">{% if hp.is_active %}Active{% else %}Inactive{% endif %}</span>
                     </div>
                     {% if hp.shared %}
@@ -89,12 +102,14 @@
                         <span class="badge">Shared by {{ hp.owner_email or 'Unknown' }}</span>
                     </div>
                     {% endif %}
-                    {% if hp.description %}<p style="color: var(--muted); margin-bottom: 10px;">{{ hp.description }}</p>{% endif %}
-                    <div class="meta-row">
+                    <p class="honeypot-summary-description">{{ hp.description or 'No description provided.' }}</p>
+                    <div class="honeypot-summary-meta">
+                        <span><strong>ID:</strong> {{ hp_id }}</span>
                         <span><strong>Protocols:</strong> {{ hp.active_protocols|join(', ') if hp.active_protocols else 'None' }}</span>
                         <span><strong>Logs:</strong> {{ hp.logs|length }}</span>
+                        <span><strong>Last Active:</strong> <span class="js-timestamp" data-timestamp="{{ hp.last_active or '' }}">{{ hp.last_active[:19] if hp.last_active else 'N/A' }}</span></span>
                     </div>
-                    <a href="/logs?honeypot_id={{ hp_id }}"><button class="btn" style="margin-top: 16px;">View Logs</button></a>
+                    <a class="honeypot-summary-action" href="/logs?honeypot_id={{ hp_id }}"><button class="btn">View Logs</button></a>
                 </div>
                 {% endfor %}
             </div>
@@ -103,8 +118,13 @@
         {% if recent_activity %}
         <div class="recent-activity">
             <div class="section-title">
-                <h2>Recent changes</h2>
-                <p>Latest management actions recorded for your honeypots.</p>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2>Recent changes</h2>
+                        <p>Latest management actions recorded for your honeypots.</p>
+                    </div>
+                    <a href="/activity-history" class="btn btn-ghost" style="white-space: nowrap; margin-top: -0.5rem;">View All →</a>
+                </div>
             </div>
             <div class="table-wrap">
                 <table class="logs-table">
@@ -381,66 +401,74 @@
             honeypotGrid.innerHTML = '';
             honeypots.forEach((hp) => {
                 const card = document.createElement('div');
-                card.className = 'card';
+                card.className = 'card honeypot-summary-card';
+
+                const header = document.createElement('div');
+                header.className = 'honeypot-summary-header';
 
                 const title = document.createElement('h3');
+                title.textContent = hp.name || hp.honeypot_id || 'Unknown Honeypot';
+
                 const statusSpan = document.createElement('span');
                 statusSpan.className = `status-pill ${hp.is_active ? 'active' : 'inactive'}`;
                 statusSpan.textContent = hp.is_active ? 'Active' : 'Inactive';
-                title.textContent = `${hp.name} `;
-                title.appendChild(statusSpan);
 
-                const idLine = document.createElement('p');
-                const idLabel = document.createElement('strong');
-                idLabel.textContent = 'ID:';
-                idLine.appendChild(idLabel);
-                idLine.appendChild(document.createTextNode(` ${hp.honeypot_id}`));
+                header.appendChild(title);
+                header.appendChild(statusSpan);
 
-                let descriptionLine = null;
-                if (hp.description) {
-                    descriptionLine = document.createElement('p');
-                    const descriptionLabel = document.createElement('strong');
-                    descriptionLabel.textContent = 'Description:';
-                    descriptionLine.appendChild(descriptionLabel);
-                    descriptionLine.appendChild(document.createTextNode(` ${hp.description}`));
+                let badgeRow = null;
+                if (hp.shared) {
+                    badgeRow = document.createElement('div');
+                    badgeRow.className = 'badge-row';
+
+                    const badge = document.createElement('span');
+                    badge.className = 'badge';
+                    badge.textContent = `Shared by ${hp.owner || 'Unknown'}`;
+
+                    badgeRow.appendChild(badge);
                 }
 
-                const protocolsLine = document.createElement('p');
-                const protocolsLabel = document.createElement('strong');
-                protocolsLabel.textContent = 'Protocols:';
+                const descriptionLine = document.createElement('p');
+                descriptionLine.className = 'honeypot-summary-description';
+                descriptionLine.textContent = hp.description || 'No description provided.';
+
+                const metaRow = document.createElement('div');
+                metaRow.className = 'honeypot-summary-meta';
+
                 const protocolValue = hp.active_protocols && hp.active_protocols.length
                     ? hp.active_protocols.join(', ')
                     : 'None';
-                protocolsLine.appendChild(protocolsLabel);
-                protocolsLine.appendChild(document.createTextNode(` ${protocolValue}`));
 
-                const logsLine = document.createElement('p');
-                const logsLabel = document.createElement('strong');
-                logsLabel.textContent = 'Logs:';
-                logsLine.appendChild(logsLabel);
-                logsLine.appendChild(document.createTextNode(` ${hp.logs_count}`));
+                const metaItems = [
+                    ['ID:', hp.honeypot_id || 'N/A'],
+                    ['Protocols:', protocolValue],
+                    ['Logs:', `${hp.logs_count ?? 0}`],
+                    ['Last Active:', formatTimestamp(hp.last_active)]
+                ];
 
-                const lastActiveLine = document.createElement('p');
-                const lastActiveLabel = document.createElement('strong');
-                lastActiveLabel.textContent = 'Last Active:';
-                lastActiveLine.appendChild(lastActiveLabel);
-                lastActiveLine.appendChild(document.createTextNode(` ${formatTimestamp(hp.last_active)}`));
+                metaItems.forEach(([label, value]) => {
+                    const item = document.createElement('span');
+                    const labelNode = document.createElement('strong');
+                    labelNode.textContent = label;
+                    item.appendChild(labelNode);
+                    item.appendChild(document.createTextNode(` ${value}`));
+                    metaRow.appendChild(item);
+                });
 
                 const logsLink = document.createElement('a');
+                logsLink.className = 'honeypot-summary-action';
                 logsLink.href = `/logs?honeypot_id=${hp.honeypot_id}`;
                 const logsButton = document.createElement('button');
                 logsButton.className = 'btn';
                 logsButton.textContent = 'View Logs';
                 logsLink.appendChild(logsButton);
 
-                card.appendChild(title);
-                card.appendChild(idLine);
-                if (descriptionLine) {
-                    card.appendChild(descriptionLine);
+                card.appendChild(header);
+                if (badgeRow) {
+                    card.appendChild(badgeRow);
                 }
-                card.appendChild(protocolsLine);
-                card.appendChild(logsLine);
-                card.appendChild(lastActiveLine);
+                card.appendChild(descriptionLine);
+                card.appendChild(metaRow);
                 card.appendChild(logsLink);
 
                 honeypotGrid.appendChild(card);
@@ -515,5 +543,6 @@
 
         setInterval(refreshDashboard, REFRESH_INTERVAL_MS);
     </script>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
 </body>
 </html>

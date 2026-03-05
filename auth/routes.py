@@ -132,6 +132,25 @@ def change_password():
     else:
         return redirect(url_for('auth.settings', error=result['error']))
 
+@auth_bp.route('/resend_verification_email', methods=['POST'])
+@limiter.limit("3 per minute")
+def resend_verification_email():
+    if not is_logged_in():
+        return redirect(url_for('auth.login'))
+
+    user_info = auth.get_user_info(session['id_token'])
+    if not user_info.get('success'):
+        return redirect(url_for('auth.settings', error='Unable to load account information'))
+
+    if user_info.get('email_verified'):
+        return redirect(url_for('auth.settings', success='Email is already verified'))
+
+    result = auth.send_email_verification(session['id_token'])
+
+    if result['success']:
+        return redirect(url_for('auth.settings', success='Verification email sent'))
+    return redirect(url_for('auth.settings', error=result['error']))
+
 @auth_bp.route('/reset_password', methods=['GET', 'POST'])
 @limiter.limit("3 per minute")
 def reset_password():

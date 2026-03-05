@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
+    color-scheme: light;
     --bg: #f7fafc;
     --bg-soft: #eef7f6;
     --surface: #ffffff;
@@ -18,12 +19,32 @@
     --shadow-soft: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
+[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f172a;
+    --bg-soft: #1a2a40;
+    --surface: #1a2a40;
+    --surface-2: #233859;
+    --ink: #f7fafc;
+    --muted: #a4b7c8;
+    --border: #3d5065;
+    --accent: #0f766e;
+    --accent-2: #f59e0b;
+    --accent-3: #0ea5e9;
+    --danger: #ff6b7a;
+    --success: #34d399;
+    --ring: rgba(15, 118, 110, 0.25);
+    --shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+    --shadow-soft: 0 8px 18px rgba(0, 0, 0, 0.3);
+}
+
 * {
     box-sizing: border-box;
 }
 
 html {
     scroll-behavior: smooth;
+    background-color: var(--bg);
 }
 
 body {
@@ -34,6 +55,13 @@ body {
         radial-gradient(800px 500px at -10% 15%, #d8f3f0 0%, transparent 55%),
         var(--bg);
     min-height: 100vh;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="dark"] body {
+    background: radial-gradient(1200px 600px at 85% -10%, rgba(31, 58, 86, 0.3) 0%, transparent 60%),
+        radial-gradient(800px 500px at -10% 15%, rgba(15, 118, 110, 0.1) 0%, transparent 55%),
+        var(--bg);
 }
 
 a {
@@ -409,10 +437,23 @@ textarea {
     padding: 12px 16px;
     border-radius: 10px;
     border: 2px solid var(--border);
-    background: #ffffff;
+    background: var(--surface);
+    color: var(--ink);
+    caret-color: var(--ink);
     font-family: "Space Grotesk", "Segoe UI", sans-serif;
     font-size: 0.95rem;
     transition: all 0.2s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--muted);
+    opacity: 1;
+}
+
+select option {
+    background: var(--surface);
+    color: var(--ink);
 }
 
 input:focus,
@@ -549,6 +590,51 @@ textarea:focus {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 20px;
+}
+
+.honeypot-summary-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.honeypot-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.honeypot-summary-header h3 {
+    font-size: 1.18rem;
+    line-height: 1.25;
+}
+
+.honeypot-summary-description {
+    color: var(--muted);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.honeypot-summary-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.honeypot-summary-meta span {
+    line-height: 1.4;
+}
+
+.honeypot-summary-meta strong {
+    color: var(--ink);
+}
+
+.honeypot-summary-action {
+    margin-top: 4px;
+    align-self: flex-start;
 }
 
 .chart-container {
@@ -878,6 +964,10 @@ textarea:focus {
         flex-direction: column;
         align-items: flex-start;
     }
+
+    .honeypot-summary-meta {
+        grid-template-columns: 1fr;
+    }
 }
 
 .fade-up {
@@ -893,4 +983,32 @@ textarea:focus {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Theme Toggle Button */
+#theme-toggle {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+#theme-toggle:hover {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+
+#theme-toggle:active {
+    transform: scale(0.98);
 }
