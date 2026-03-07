@@ -9,6 +9,7 @@ import uuid
 import logging
 from datetime import datetime
 from database.database_communicator import DatabaseCommunicator
+from honeypot.honeypot_to_db_routes import authenticated_honeypots
 
 logger = logging.getLogger(__name__)
 honeypot_bp = Blueprint('honeypot', __name__, url_prefix='/honeypot')
@@ -104,6 +105,8 @@ def list_honeypots():
         if result['success']:
             honeypots = result.get('honeypots', {})
             honeypot_list = []
+            connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
+            now_iso = datetime.now().isoformat()
             
             for hp_id, hp_data in honeypots.items():
                 owner_label = None
@@ -116,7 +119,7 @@ def list_honeypots():
                     'name': hp_data.get('name', 'Unknown'),
                     'is_active': hp_data.get('is_active', False),
                     'created_at': hp_data.get('created_at'),
-                    'last_active': hp_data.get('last_active'),
+                    'last_active': now_iso if hp_data.get('is_active', False) and hp_id in connected_honeypot_ids else hp_data.get('last_active'),
                     'description': hp_data.get('description', ''),
                     'shared': bool(hp_data.get('shared')),
                     'owner_uid': hp_data.get('owner_uid'),

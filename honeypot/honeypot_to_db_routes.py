@@ -8,6 +8,7 @@ from flask import request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 from collections import deque
+from pathlib import Path
 import time
 import logging
 from functools import wraps
@@ -30,6 +31,49 @@ SCAN_PORT_THRESHOLD = 4
 SCAN_PROTOCOL_THRESHOLD = 3
 
 _recent_activity_by_src = {}
+SERVER_TIME_MARKER_FILE = Path("honeypot/state/server_time.txt")
+
+
+def _mark_server_time_now():
+    """Persist the latest known server time for abrupt-shutdown recovery."""
+    try:
+        SERVER_TIME_MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SERVER_TIME_MARKER_FILE.write_text(datetime.now().isoformat(), encoding="utf-8")
+    except Exception as e:
+        logger.warning("Unable to write server time marker: %s", str(e))
+
+
+def _read_server_time_marker():
+    try:
+        if not SERVER_TIME_MARKER_FILE.exists():
+            return None
+        value = SERVER_TIME_MARKER_FILE.read_text(encoding="utf-8").strip()
+        return value or None
+    except Exception as e:
+        logger.warning("Unable to read server time marker: %s", str(e))
+        return None
+
+
+def recover_honeypots_after_abrupt_shutdown():
+    """
+    On startup, mark stale active honeypots as inactive and set their
+    last_active to the most recently persisted server time.
+    """
+    recovery_time = _read_server_time_marker() or datetime.now().isoformat()
+    result = db.recover_active_honeypots_after_restart(recovery_time)
+    if not result.get("success"):
+        logger.error("Failed to recover stale honeypots after restart: %s", result.get("error"))
+        return result
+
+    recovered = result.get("recovered", 0)
+    if recovered:
+        logger.warning(
+            "Recovered %s stale active honeypot(s) after abrupt restart; set last_active=%s",
+            recovered,
+            recovery_time,
+        )
+    _mark_server_time_now()
+    return result
 
 
 def _parse_iso_timestamp(value):
@@ -225,6 +269,7 @@ def handle_connect():
     """Handle honeypot client initial WebSocket connection to Socket.IO server"""
     try:
         logger.info(f"Honeypot client connected: {request.sid}")
+        _mark_server_time_now()
         # Don't require authentication on connection—let honeypot authenticate via honeypot_connect event
         emit('connection_response', {
             'success': True,
@@ -240,6 +285,7 @@ def handle_connect():
 def handle_disconnect():
     """Handle honeypot client disconnection"""
     try:
+        _mark_server_time_now()
         if request.sid in authenticated_honeypots:
             auth_info = authenticated_honeypots.pop(request.sid)
             honeypot_id = auth_info['honeypot_id']
@@ -276,6 +322,7 @@ def handle_honeypot_connect(data):
     Prevents duplicate connections with the same honeypot_id.
     """
     try:
+        _mark_server_time_now()
         honeypot_id = data.get('honeypot_id')
         metadata = data.get('metadata', {})
         
@@ -364,6 +411,7 @@ def handle_honeypot_disconnect(data):
     Expected data: {'reason': str} (uid and honeypot_id come from authenticated_honeypots)
     """
     try:
+        _mark_server_time_now()
         auth_info = authenticated_honeypots.get(request.sid)
         if not auth_info:
             emit('error', {'message': 'Not authenticated'})
@@ -475,6 +523,7 @@ def handle_honeypot_log(data):
     uid and honeypot_id come from authenticated_honeypots
     """
     try:
+        _mark_server_time_now()
         auth_info = authenticated_honeypots.get(request.sid)
         if not auth_info:
             emit('error', {'message': 'Not authenticated'})
@@ -529,6 +578,7 @@ def handle_batch_honeypot_logs(data):
     uid and honeypot_id come from authenticated_honeypots
     """
     try:
+        _mark_server_time_now()
         auth_info = authenticated_honeypots.get(request.sid)
         if not auth_info:
             emit('error', {'message': 'Not authenticated'})
@@ -594,6 +644,7 @@ def handle_honeypot_heartbeat(data):
     uid and honeypot_id come from authenticated_honeypots
     """
     try:
+        _mark_server_time_now()
         auth_info = authenticated_honeypots.get(request.sid)
         if not auth_info:
             emit('error', {'message': 'Not authenticated'})

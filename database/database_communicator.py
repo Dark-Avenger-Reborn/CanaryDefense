@@ -1003,6 +1003,49 @@ class DatabaseCommunicator:
         except Exception:
             return None
 
+    def recover_active_honeypots_after_restart(self, recovered_last_active):
+        """
+        Recover stale active honeypots after an abrupt server restart.
+
+        Any honeypot left in active state is marked inactive and gets its
+        last_active timestamp set to the provided recovery timestamp.
+
+        Args:
+            recovered_last_active (str): ISO timestamp from persisted server time file
+
+        Returns:
+            dict: Recovery status and count of recovered honeypots
+        """
+        try:
+            recovered_count = 0
+            with self._transaction() as conn:
+                rows = conn.execute("SELECT uid, data FROM users").fetchall()
+                for row in rows:
+                    uid = row["uid"]
+                    user_data = self._load_user_data(conn, uid)
+                    if user_data is None:
+                        continue
+
+                    honeypots = user_data.get("honeypots", {})
+                    changed = False
+                    for honeypot in honeypots.values():
+                        if honeypot.get("is_active"):
+                            honeypot["is_active"] = False
+                            honeypot["last_active"] = recovered_last_active
+                            recovered_count += 1
+                            changed = True
+
+                    if changed:
+                        self._save_user_data(conn, uid, user_data)
+
+            return {
+                "success": True,
+                "recovered": recovered_count,
+                "recovered_last_active": recovered_last_active
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def get_last_alert_email_time(self, uid, honeypot_id):
         """
         Get the timestamp of the last alert email sent for a honeypot.
