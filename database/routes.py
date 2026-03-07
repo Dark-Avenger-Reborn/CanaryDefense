@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, session, request, redirect, url_fo
 from database.database_communicator import DatabaseCommunicator
 from auth.extensions import limiter
 from alerts import record_suspicious_activity, notify_honeypot_down
-from honeypot.honeypot_to_db_routes import send_start_command, send_stop_command
+from honeypot.honeypot_to_db_routes import authenticated_honeypots, send_start_command, send_stop_command
 
 database_bp = Blueprint('database', __name__)
 db = DatabaseCommunicator()
@@ -229,7 +229,9 @@ def honeypots_live():
         return jsonify({"success": False, "error": result.get("error", "Failed to load honeypots")}), 400
 
     honeypots_payload = {}
+    connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
     for hp_id, hp in result.get('honeypots', {}).items():
+        is_live = bool(hp.get('is_active', False) and hp_id in connected_honeypot_ids)
         owner_label = None
         if hp.get("shared"):
             owner_profile = db.get_user_basic(hp.get("owner_uid"))
@@ -239,6 +241,7 @@ def honeypots_live():
             "name": hp.get('name', hp_id),
             "description": hp.get('description'),
             "is_active": bool(hp.get('is_active')),
+            "is_live": is_live,
             "active_protocols": hp.get('active_protocols', []),
             "logs_count": len(hp.get('logs', [])),
             "last_active": hp.get('last_active'),

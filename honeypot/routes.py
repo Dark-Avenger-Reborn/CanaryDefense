@@ -7,7 +7,6 @@ from auth.routes import is_logged_in
 import os
 import uuid
 import logging
-from datetime import datetime
 from database.database_communicator import DatabaseCommunicator
 from honeypot.honeypot_to_db_routes import authenticated_honeypots
 
@@ -106,9 +105,8 @@ def list_honeypots():
             honeypots = result.get('honeypots', {})
             honeypot_list = []
             connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
-            now_iso = datetime.now().isoformat()
-            
             for hp_id, hp_data in honeypots.items():
+                is_live = bool(hp_data.get('is_active', False) and hp_id in connected_honeypot_ids)
                 owner_label = None
                 if hp_data.get("shared"):
                     owner_profile = db.get_user_basic(hp_data.get("owner_uid"))
@@ -118,8 +116,9 @@ def list_honeypots():
                     'id': hp_id,
                     'name': hp_data.get('name', 'Unknown'),
                     'is_active': hp_data.get('is_active', False),
+                    'is_live': is_live,
                     'created_at': hp_data.get('created_at'),
-                    'last_active': now_iso if hp_data.get('is_active', False) and hp_id in connected_honeypot_ids else hp_data.get('last_active'),
+                    'last_active': hp_data.get('last_active'),
                     'description': hp_data.get('description', ''),
                     'shared': bool(hp_data.get('shared')),
                     'owner_uid': hp_data.get('owner_uid'),

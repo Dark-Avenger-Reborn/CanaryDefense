@@ -93,10 +93,8 @@ def index():
         
         # Get actually connected honeypot IDs
         connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
-        now_iso = datetime.now().isoformat()
         for hp_id, hp in honeypots_data.items():
-            if hp.get('is_active', False) and hp_id in connected_honeypot_ids:
-                hp['last_active'] = now_iso
+            hp['is_live'] = bool(hp.get('is_active', False) and hp_id in connected_honeypot_ids)
         
         # Protocol distribution (only actually connected honeypots)
         protocol_count = {}
@@ -168,7 +166,7 @@ def dashboard_data():
 
     for hp_id, hp in honeypots_data.items():
         is_live = bool(hp.get('is_active', False) and hp_id in connected_honeypot_ids)
-        last_active_value = datetime.now().isoformat() if is_live else hp.get('last_active')
+        last_active_value = hp.get('last_active')
         owner_label = None
         if hp.get("shared"):
             owner_profile = db.get_user_basic(hp.get("owner_uid"))
@@ -179,6 +177,7 @@ def dashboard_data():
             "name": hp.get('name', hp_id),
             "description": hp.get('description'),
             "is_active": bool(hp.get('is_active')),
+            "is_live": is_live,
             "active_protocols": hp.get('active_protocols', []),
             "logs_count": len(hp.get('logs', [])),
             "last_active": last_active_value,

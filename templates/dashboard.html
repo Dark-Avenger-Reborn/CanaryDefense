@@ -107,7 +107,7 @@
                         <span><strong>ID:</strong> {{ hp_id }}</span>
                         <span><strong>Protocols:</strong> {{ hp.active_protocols|join(', ') if hp.active_protocols else 'None' }}</span>
                         <span><strong>Logs:</strong> {{ hp.logs|length }}</span>
-                        <span><strong>Last Active:</strong> <span class="js-timestamp" data-timestamp="{{ hp.last_active or '' }}">{{ hp.last_active[:19] if hp.last_active else 'N/A' }}</span></span>
+                        <span><strong>Last Active:</strong> <span class="js-timestamp" data-timestamp="{{ 'Now' if hp.is_live else (hp.last_active or '') }}">{{ 'Now' if hp.is_live else (hp.last_active[:19] if hp.last_active else 'N/A') }}</span></span>
                     </div>
                     <a class="honeypot-summary-action" href="/logs?honeypot_id={{ hp_id }}"><button class="btn">View Logs</button></a>
                 </div>
@@ -249,6 +249,9 @@
         }
 
         function formatTimestamp(value) {
+            if (value && value.toString().trim().toLowerCase() === 'now') {
+                return 'Now';
+            }
             const parsed = parseTimestamp(value);
             if (!parsed) {
                 return 'N/A';
@@ -443,7 +446,7 @@
                     ['ID:', hp.honeypot_id || 'N/A'],
                     ['Protocols:', protocolValue],
                     ['Logs:', `${hp.logs_count ?? 0}`],
-                    ['Last Active:', formatTimestamp(hp.last_active)]
+                    ['Last Active:', hp.is_live ? 'Now' : formatTimestamp(hp.last_active)]
                 ];
 
                 metaItems.forEach(([label, value]) => {

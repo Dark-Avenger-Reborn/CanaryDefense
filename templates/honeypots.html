@@ -358,6 +358,9 @@
         }
 
         function formatTimestamp(value) {
+            if (value && value.toString().trim().toLowerCase() === 'now') {
+                return 'Now';
+            }
             const parsed = parseTimestamp(value);
             if (!parsed) {
                 return 'N/A';
@@ -424,7 +427,7 @@
 
             const lastActiveEl = document.getElementById(`hp-last-active-${hpId}`);
             if (lastActiveEl) {
-                lastActiveEl.textContent = formatTimestamp(hp.last_active);
+                lastActiveEl.textContent = hp.is_live ? 'Now' : formatTimestamp(hp.last_active);
             }
 
             const protocolsEl = document.getElementById(`hp-protocols-${hpId}`);
