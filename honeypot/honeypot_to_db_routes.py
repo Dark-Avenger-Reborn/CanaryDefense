@@ -13,7 +13,11 @@ import time
 import logging
 from functools import wraps
 from database.database_communicator import DatabaseCommunicator
-from alerts import record_suspicious_activity, notify_honeypot_down
+from alerts import (
+    clear_pending_honeypot_down_alert,
+    record_suspicious_activity,
+    notify_honeypot_down,
+)
 
 logger = logging.getLogger(__name__)
 db = DatabaseCommunicator()
@@ -370,6 +374,9 @@ def handle_honeypot_connect(data):
         )
         
         if result['success']:
+            # Suppress transient down alerts when the honeypot reconnects quickly.
+            clear_pending_honeypot_down_alert(uid, honeypot_id)
+
             # Join honeypot-specific room for receiving commands
             room_name = f"honeypot_{honeypot_id}"
             join_room(room_name)

@@ -2,8 +2,8 @@
 Lightweight alert orchestration for honeypot events.
 
 - Suspicious activity: first event starts a short timer (default 5 minutes).
-  When the timer elapses, the collected logs are emailed once.
-- Honeypot down: immediate email when a honeypot is marked inactive.
+    When the timer elapses, the collected logs are emailed once.
+- Honeypot down: delayed email with reconnect-aware suppression and cooldown.
 
 This module keeps in-memory state only; a process restart resets timers.
 """
@@ -21,11 +21,24 @@ from .send_email import send_email
 # Delay before emailing suspicious activity (seconds). Default 5 minutes.
 ALERT_DELAY_SECONDS = int(os.getenv("ALERT_DELAY_SECONDS", "300"))
 
+# Wait before sending a down alert so short network blips don't notify.
+HONEYPOT_DOWN_ALERT_GRACE_SECONDS = int(os.getenv("HONEYPOT_DOWN_ALERT_GRACE_SECONDS", "120"))
+
+# Minimum time between down alerts for the same honeypot.
+HONEYPOT_DOWN_ALERT_COOLDOWN_SECONDS = int(os.getenv("HONEYPOT_DOWN_ALERT_COOLDOWN_SECONDS", "1800"))
+
 _db = DatabaseCommunicator()
 
 # Structure: {(uid, honeypot_id): {"started_at": ts, "logs": [..], "timer": Timer}}
 _pending: Dict[Tuple[str, str], Dict[str, object]] = {}
 _pending_lock = threading.Lock()
+
+# Structure: {(uid, honeypot_id): {"started_at": ts, "timer": Timer}}
+_pending_honeypot_down: Dict[Tuple[str, str], Dict[str, object]] = {}
+_pending_honeypot_down_lock = threading.Lock()
+
+# Structure: {(uid, honeypot_id): sent_at_unix_ts}
+_last_honeypot_down_sent: Dict[Tuple[str, str], float] = {}
 
 
 def _format_timestamp(iso_timestamp: str) -> str:
@@ -250,10 +263,9 @@ def record_suspicious_activity(uid: str, honeypot_id: str, log_entry: dict):
             _pending[key]["logs"].append(log_entry)
 
 
-def notify_honeypot_down(uid: str, honeypot_id: str):
-    """Immediately send a honeypot-down alert to owner and collaborators if enabled."""
+def _send_honeypot_down_email(uid: str, honeypot_id: str):
     recipients_info = _get_honeypot_alert_recipients(uid, honeypot_id)
-    
+
     honeypot_result = _db.get_honeypot(uid, honeypot_id)
     honeypot_name = honeypot_result.get("honeypot", {}).get("name", honeypot_id) if honeypot_result.get("success") else honeypot_id
 
@@ -294,5 +306,49 @@ def notify_honeypot_down(uid: str, honeypot_id: str):
             "</div>"
         )
         send_email(recipients, subject, body, html_body)
+
+
+def _finalize_honeypot_down_alert(key: Tuple[str, str]):
+    with _pending_honeypot_down_lock:
+        _pending_honeypot_down.pop(key, None)
+
+        last_sent = _last_honeypot_down_sent.get(key)
+        if last_sent is not None and (time.time() - last_sent) < HONEYPOT_DOWN_ALERT_COOLDOWN_SECONDS:
+            return
+
+    uid, honeypot_id = key
+    honeypot_result = _db.get_honeypot(uid, honeypot_id)
+    if honeypot_result.get("success") and honeypot_result.get("honeypot", {}).get("is_active", False):
+        return
+
+    _send_honeypot_down_email(uid, honeypot_id)
+    with _pending_honeypot_down_lock:
+        _last_honeypot_down_sent[key] = time.time()
+
+
+def clear_pending_honeypot_down_alert(uid: str, honeypot_id: str):
+    """Cancel a pending down alert if a honeypot reconnects in time."""
+    key = (uid, honeypot_id)
+    with _pending_honeypot_down_lock:
+        entry = _pending_honeypot_down.pop(key, None)
+
+    if entry and entry.get("timer"):
+        entry["timer"].cancel()
+
+
+def notify_honeypot_down(uid: str, honeypot_id: str):
+    """Queue a down alert with grace period and cooldown throttling."""
+    key = (uid, honeypot_id)
+    with _pending_honeypot_down_lock:
+        if key in _pending_honeypot_down:
+            return
+
+        timer = threading.Timer(HONEYPOT_DOWN_ALERT_GRACE_SECONDS, _finalize_honeypot_down_alert, args=(key,))
+        timer.daemon = True
+        _pending_honeypot_down[key] = {
+            "started_at": time.time(),
+            "timer": timer,
+        }
+        timer.start()
 
 

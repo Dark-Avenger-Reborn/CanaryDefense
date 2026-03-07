@@ -99,6 +99,16 @@ Optional alert batching delay (seconds):
 ALERT_DELAY_SECONDS=300
 ```
 
+Optional honeypot-down alert noise controls:
+
+```env
+# Wait this long before sending a down alert (suppresses short reconnect blips)
+HONEYPOT_DOWN_ALERT_GRACE_SECONDS=120
+
+# Minimum seconds between down emails for the same honeypot
+HONEYPOT_DOWN_ALERT_COOLDOWN_SECONDS=1800
+```
+
 ## Running The App
 
 Start the Flask-SocketIO server:
