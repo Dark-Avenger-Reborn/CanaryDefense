@@ -3,7 +3,31 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>{{ brand_name }} | Honeypot Control</title>
+	<title>{{ brand_name }} | Honeypot Monitoring & Threat Intelligence Platform</title>
+	<meta name="description" content="{{ brand_name }} is a honeypot monitoring and threat intelligence platform for deploying decoys, collecting attacker telemetry, and responding to suspicious activity in real time.">
+	<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+	<link rel="canonical" href="{{ public_base_url }}/">
+
+	<meta property="og:type" content="website">
+	<meta property="og:site_name" content="{{ brand_name }}">
+	<meta property="og:title" content="{{ brand_name }} | Honeypot Monitoring & Threat Intelligence Platform">
+	<meta property="og:description" content="Deploy honeypots, monitor attacker activity, and generate actionable threat intelligence from a unified control center.">
+	<meta property="og:url" content="{{ public_base_url }}/">
+
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:title" content="{{ brand_name }} | Honeypot Monitoring & Threat Intelligence Platform">
+	<meta name="twitter:description" content="Deploy honeypots, track malicious behavior, and improve incident response with real-time telemetry.">
+
+	<script type="application/ld+json">
+		{
+			"@context": "https://schema.org",
+			"@type": "SoftwareApplication",
+			"name": "{{ brand_name }}",
+			"applicationCategory": "SecurityApplication",
+			"description": "Honeypot monitoring and threat intelligence platform with real-time telemetry and alerting.",
+			"url": "{{ public_base_url }}/"
+		}
+	</script>
 	<script>
 		(function () {
 			try {

@@ -1,5 +1,4 @@
-from flask import Flask, render_template, session, redirect, url_for, jsonify
-from flask import Flask, render_template, session, redirect, url_for, jsonify, request
+from flask import Flask, render_template, session, redirect, url_for, jsonify, request, Response
 from pathlib import Path
 from datetime import datetime
 from auth.routes import auth_bp, is_logged_in
@@ -42,6 +41,21 @@ db = DatabaseCommunicator()
 BRAND_NAME_FILE = Path("config/brand_name.txt")
 
 
+def get_public_base_url():
+    configured_base_url = (os.getenv("BASE_URL") or "").strip().rstrip('/')
+    if configured_base_url:
+        return configured_base_url
+
+    # Prefer reverse-proxy headers so port-forwarded/public hosts are reflected.
+    forwarded_host = (request.headers.get('X-Forwarded-Host') or '').split(',')[0].strip()
+    forwarded_proto = (request.headers.get('X-Forwarded-Proto') or '').split(',')[0].strip()
+    if forwarded_host:
+        scheme = forwarded_proto or request.scheme or 'https'
+        return f"{scheme}://{forwarded_host}".rstrip('/')
+
+    return request.host_url.rstrip('/')
+
+
 def load_brand_name():
     try:
         name = BRAND_NAME_FILE.read_text(encoding="utf-8").strip()
@@ -52,7 +66,10 @@ def load_brand_name():
 
 @app.context_processor
 def inject_brand_name():
-    return {"brand_name": load_brand_name()}
+    return {
+        "brand_name": load_brand_name(),
+        "public_base_url": get_public_base_url()
+    }
 
 
 @app.route('/')
@@ -144,6 +161,46 @@ def public_counts():
         "total_honeypots": counts.get('total_honeypots', 0),
         "total_logs": counts.get('total_logs', 0)
     })
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    site_root = get_public_base_url()
+    robots_content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        f"Sitemap: {site_root}/sitemap.xml\n"
+    )
+    return Response(robots_content, mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    base_url = get_public_base_url()
+    now = datetime.utcnow().strftime('%Y-%m-%d')
+    pages = [
+        {'loc': f'{base_url}/', 'changefreq': 'daily', 'priority': '1.0'},
+        {'loc': f'{base_url}/honeypots', 'changefreq': 'weekly', 'priority': '0.8'},
+        {'loc': f'{base_url}/login', 'changefreq': 'monthly', 'priority': '0.5'},
+        {'loc': f'{base_url}/create_account', 'changefreq': 'monthly', 'priority': '0.5'},
+    ]
+
+    xml_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for page in pages:
+        xml_parts.append(
+            "<url>"
+            f"<loc>{page['loc']}</loc>"
+            f"<lastmod>{now}</lastmod>"
+            f"<changefreq>{page['changefreq']}</changefreq>"
+            f"<priority>{page['priority']}</priority>"
+            "</url>"
+        )
+    xml_parts.append('</urlset>')
+
+    return Response('\n'.join(xml_parts), mimetype='application/xml')
 
 @app.route('/api/dashboard')
 def dashboard_data():

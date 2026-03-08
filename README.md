@@ -93,6 +93,12 @@ SMTP_PASSWORD=
 SMTP_SENDER=
 ```
 
+Optional public URL override (recommended behind reverse proxies and tunnels):
+
+```env
+BASE_URL=https://canarydefense.com
+```
+
 Optional alert batching delay (seconds):
 
 ```env
