@@ -41,6 +41,44 @@ _pending_honeypot_down_lock = threading.Lock()
 _last_honeypot_down_sent: Dict[Tuple[str, str], float] = {}
 
 
+def _format_location(log: dict, intel: dict) -> str:
+    city = intel.get("city") or log.get("city") or "Unknown"
+    region = intel.get("region") or log.get("region") or "Unknown"
+    country = intel.get("country") or log.get("country") or "Unknown"
+    parts = [str(city).strip(), str(region).strip(), str(country).strip()]
+    return ", ".join(part if part else "Unknown" for part in parts)
+
+
+def _build_activity_summary(logs: List[dict]) -> dict:
+    summary = {
+        "total": len(logs),
+        "infiltration": 0,
+        "brute_force": 0,
+        "reconnaissance": 0,
+        "scan": 0,
+        "failed": 0,
+        "error": 0,
+        "high_risk": 0,
+        "unknown": 0,
+        "unique_sources": set(),
+    }
+
+    for log in logs:
+        status = str(log.get("status", "")).lower()
+        risk_level = str(log.get("risk_level", "")).lower()
+        source_ip = log.get("src_ip", log.get("source_ip"))
+
+        if status in summary:
+            summary[status] += 1
+        if risk_level in {"high", "critical"}:
+            summary["high_risk"] += 1
+        if source_ip:
+            summary["unique_sources"].add(source_ip)
+
+    summary["unique_sources"] = len(summary["unique_sources"])
+    return summary
+
+
 def _format_timestamp(iso_timestamp: str) -> str:
     """
     Convert ISO timestamp to human-readable local time format.
@@ -64,25 +102,38 @@ def _format_timestamp(iso_timestamp: str) -> str:
 def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
     user = _db.get_user_entry(uid)
     user_email = user.get("data", {}).get("email") if user.get("success") else "unknown"
+    summary = _build_activity_summary(logs)
     lines = [
         f"Honeypot activity detected for {honeypot_id}",
         f"Account: {user_email}",
         "",
-        f"Total events collected: {len(logs)}",
+        f"Total events collected: {summary['total']}",
+        f"Unique source IPs: {summary['unique_sources']}",
+        f"Infiltration: {summary['infiltration']} | Brute Force: {summary['brute_force']} | Recon: {summary['reconnaissance']} | Scan: {summary['scan']} | Failed: {summary['failed']} | Error: {summary['error']}",
+        f"High/Critical risk events: {summary['high_risk']}",
         ""
     ]
     for log in logs:
         timestamp_raw = log.get('timestamp', 'n/a')
         timestamp_formatted = _format_timestamp(timestamp_raw) if timestamp_raw != 'n/a' else 'n/a'
+        intel = log.get("source_intel") or {}
+        intel_tags = intel.get("tags") or []
+        tags_text = ",".join(str(tag) for tag in intel_tags) if intel_tags else "none"
+        location_text = _format_location(log, intel)
         lines.append(
             " - "
             + " | ".join(
                 [
                     f"timestamp={timestamp_formatted}",
+                    f"action={log.get('action', 'n/a')}",
                     f"src_ip={log.get('src_ip', log.get('source_ip', 'n/a'))}",
                     f"dest_ip={log.get('dest_ip', log.get('destination_ip', 'n/a'))}",
                     f"protocol={log.get('protocol', log.get('server', 'n/a'))}",
                     f"status={log.get('status', 'n/a')}",
+                    f"reason={log.get('status_reason', 'n/a')}",
+                    f"risk={log.get('risk_score', 'n/a')} ({log.get('risk_level', 'n/a')})",
+                    f"location={location_text}",
+                    f"intel={intel.get('category', 'n/a')} / rdns={intel.get('reverse_dns', 'Unknown')} / tags={tags_text}",
                 ]
             )
         )
@@ -92,31 +143,55 @@ def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
 def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
     user = _db.get_user_entry(uid)
     user_email = user.get("data", {}).get("email") if user.get("success") else "unknown"
+    summary = _build_activity_summary(logs)
 
     safe_honeypot_id = html.escape(str(honeypot_id))
     safe_user_email = html.escape(str(user_email))
     safe_total = html.escape(str(len(logs)))
+    safe_unique_sources = html.escape(str(summary["unique_sources"]))
+    safe_high_risk = html.escape(str(summary["high_risk"]))
+    safe_infiltration = html.escape(str(summary["infiltration"]))
+    safe_brute_force = html.escape(str(summary["brute_force"]))
+    safe_reconnaissance = html.escape(str(summary["reconnaissance"]))
+    safe_scan = html.escape(str(summary["scan"]))
+    safe_failed = html.escape(str(summary["failed"]))
+    safe_error = html.escape(str(summary["error"]))
 
     rows = []
     for log in logs:
         timestamp_raw = log.get('timestamp', 'n/a')
         timestamp_formatted = _format_timestamp(timestamp_raw) if timestamp_raw != 'n/a' else 'n/a'
+        intel = log.get("source_intel") or {}
+        intel_tags = intel.get("tags") or []
+        tags_text = ", ".join(str(tag) for tag in intel_tags) if intel_tags else "none"
+        location_text = _format_location(log, intel)
+        risk_value = f"{log.get('risk_score', 'n/a')} ({log.get('risk_level', 'n/a')})"
+        intel_value = (
+            f"{intel.get('category', 'n/a')}"
+            f" | location: {location_text}"
+            f" | rdns: {intel.get('reverse_dns', 'Unknown')}"
+            f" | tags: {tags_text}"
+        )
         rows.append(
             "".join(
                 [
                     "<tr>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(timestamp_formatted))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('action', 'n/a')))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('src_ip', log.get('source_ip', 'n/a'))))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('dest_ip', log.get('destination_ip', 'n/a'))))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('protocol', log.get('server', 'n/a'))))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('status', 'n/a')))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('status_reason', 'n/a')))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(risk_value)}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(intel_value)}</td>",
                     "</tr>",
                 ]
             )
         )
 
     rows_html = "".join(rows) if rows else (
-        "<tr><td colspan=\"5\" style=\"padding:10px;color:#6b7280;\">No events recorded.</td></tr>"
+        "<tr><td colspan=\"9\" style=\"padding:10px;color:#6b7280;\">No events recorded.</td></tr>"
     )
 
     return (
@@ -132,16 +207,23 @@ def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
         f"<div style=\"font-size:14px;margin-bottom:6px;\"><strong>Honeypot:</strong> {safe_honeypot_id}</div>"
         f"<div style=\"font-size:14px;margin-bottom:6px;\"><strong>Account:</strong> {safe_user_email}</div>"
         f"<div style=\"font-size:14px;color:#374151;\"><strong>Total events collected:</strong> {safe_total}</div>"
+        f"<div style=\"font-size:14px;color:#374151;margin-top:4px;\"><strong>Unique source IPs:</strong> {safe_unique_sources}</div>"
+        f"<div style=\"font-size:14px;color:#374151;margin-top:4px;\"><strong>Infiltration:</strong> {safe_infiltration} &nbsp;|&nbsp; <strong>Brute Force:</strong> {safe_brute_force} &nbsp;|&nbsp; <strong>Recon:</strong> {safe_reconnaissance} &nbsp;|&nbsp; <strong>Scan:</strong> {safe_scan} &nbsp;|&nbsp; <strong>Failed:</strong> {safe_failed} &nbsp;|&nbsp; <strong>Error:</strong> {safe_error}</div>"
+        f"<div style=\"font-size:14px;color:#374151;margin-top:4px;\"><strong>High/Critical risk events:</strong> {safe_high_risk}</div>"
         "</td></tr>"
         "<tr><td style=\"padding:0 24px 24px 24px;\">"
         "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"border-collapse:collapse;font-size:12px;\">"
         "<thead>"
         "<tr style=\"background-color:#f9fafb;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;\">"
         "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Timestamp</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Action</th>"
         "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Source IP</th>"
         "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Dest IP</th>"
         "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Protocol</th>"
         "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Status</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Reason</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Risk</th>"
+        "<th align=\"left\" style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">Source Intel</th>"
         "</tr>"
         "</thead>"
         f"<tbody>{rows_html}</tbody>"

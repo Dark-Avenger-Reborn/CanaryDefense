@@ -725,6 +725,18 @@ textarea:focus {
     border: 1px solid rgba(225, 29, 72, 0.3);
 }
 
+.status-pill.brute_force {
+    background: rgba(234, 88, 12, 0.15);
+    color: #9a3412;
+    border: 1px solid rgba(234, 88, 12, 0.35);
+}
+
+.status-pill.reconnaissance {
+    background: rgba(99, 102, 241, 0.15);
+    color: #3730a3;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
 .status-pill.scan {
     background: rgba(245, 158, 11, 0.15);
     color: #92400e;

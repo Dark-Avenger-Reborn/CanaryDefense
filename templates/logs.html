@@ -120,9 +120,11 @@
                 <select id="status-filter" onchange="filterLogs()">
                     <option value="">All Statuses</option>
                     <option value="success">Success</option>
-                    <option value="failed">Failed</option>
+                    <option value="reconnaissance">Reconnaissance</option>
+                    <option value="brute_force">Brute Force</option>
                     <option value="scan">Scan</option>
                     <option value="infiltration">Infiltration</option>
+                    <option value="failed">Failed</option>
                     <option value="error">Error</option>
                     <option value="unknown">Unknown</option>
                 </select>
@@ -386,7 +388,7 @@
 
         function statusClass(value) {
             const normalized = (value || '').toString().toLowerCase();
-            if (['success', 'failed', 'scan', 'infiltration', 'error', 'unknown'].includes(normalized)) {
+            if (['success', 'reconnaissance', 'brute_force', 'scan', 'infiltration', 'failed', 'error', 'unknown'].includes(normalized)) {
                 return normalized;
             }
             return 'unknown';

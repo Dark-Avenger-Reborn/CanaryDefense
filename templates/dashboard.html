@@ -379,7 +379,7 @@
                 const statusCell = document.createElement('td');
                 const statusSpan = document.createElement('span');
                 const statusValue = (log.status || '').toString().toLowerCase();
-                const statusClass = ['success', 'failed', 'scan', 'infiltration', 'error', 'unknown'].includes(statusValue)
+                const statusClass = ['success', 'reconnaissance', 'brute_force', 'scan', 'infiltration', 'failed', 'error', 'unknown'].includes(statusValue)
                     ? statusValue
                     : 'unknown';
                 statusSpan.className = `status-pill ${statusClass}`;

@@ -9,9 +9,12 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 from collections import deque
 from pathlib import Path
+import ipaddress
+import socket
 import time
 import logging
 from functools import wraps
+from typing import Any, Dict
 from database.database_communicator import DatabaseCommunicator
 from alerts import (
     clear_pending_honeypot_down_alert,
@@ -98,6 +101,190 @@ def _coerce_int(value):
         return None
 
 
+def _risk_level_from_score(score):
+    if score >= 80:
+        return "critical"
+    if score >= 60:
+        return "high"
+    if score >= 30:
+        return "medium"
+    return "low"
+
+
+def _local_intel(ip: str) -> Dict[str, Any]:
+    intel: Dict[str, Any] = {
+        "source_ip": ip,
+        "category": "invalid",
+        "ip_version": "unknown",
+        "is_private": False,
+        "is_loopback": False,
+        "is_multicast": False,
+        "is_reserved": False,
+        "is_global": False,
+        "is_link_local": False,
+        "is_unspecified": False,
+        "country": "Unknown",
+        "region": "Unknown",
+        "city": "Unknown",
+        "asn": "Unknown",
+        "org": "Unknown",
+        "reverse_dns": "Unknown",
+        "provider": "local",
+        "abuse_confidence": None,
+        "tags": [],
+        "risk_score": 0,
+        "risk_level": "low",
+        "summary": "Invalid source IP",
+    }
+
+    if not ip:
+        return intel
+
+    try:
+        ip_obj = ipaddress.ip_address(str(ip).strip())
+    except ValueError:
+        return intel
+
+    tags = []
+    intel.update(
+        {
+            "ip_version": f"ipv{ip_obj.version}",
+            "is_private": ip_obj.is_private,
+            "is_loopback": ip_obj.is_loopback,
+            "is_multicast": ip_obj.is_multicast,
+            "is_reserved": ip_obj.is_reserved,
+            "is_global": ip_obj.is_global,
+            "is_link_local": ip_obj.is_link_local,
+            "is_unspecified": ip_obj.is_unspecified,
+        }
+    )
+
+    if ip_obj.is_loopback:
+        intel["category"] = "loopback"
+        intel["summary"] = "Local loopback traffic"
+        tags.extend(["local", "loopback"])
+        intel["risk_score"] = 5
+    elif ip_obj.is_private:
+        intel["category"] = "private"
+        intel["summary"] = "Private network source"
+        tags.extend(["internal", "rfc1918"])
+        intel["risk_score"] = 12
+    elif ip_obj.is_link_local:
+        intel["category"] = "link_local"
+        intel["summary"] = "Link-local source"
+        tags.extend(["link_local"])
+        intel["risk_score"] = 15
+    elif ip_obj.is_multicast:
+        intel["category"] = "multicast"
+        intel["summary"] = "Multicast source address"
+        tags.extend(["multicast", "suspicious"])
+        intel["risk_score"] = 35
+    elif ip_obj.is_reserved:
+        intel["category"] = "reserved"
+        intel["summary"] = "Reserved/bogon source range"
+        tags.extend(["bogon", "reserved"])
+        intel["risk_score"] = 45
+    elif ip_obj.is_unspecified:
+        intel["category"] = "unspecified"
+        intel["summary"] = "Unspecified source address"
+        tags.extend(["invalid_source"])
+        intel["risk_score"] = 55
+    elif ip_obj.is_global:
+        intel["category"] = "global"
+        intel["summary"] = "Public routable source"
+        tags.extend(["internet", "external"])
+        intel["risk_score"] = 40
+    else:
+        intel["category"] = "other"
+        intel["summary"] = "Unclassified source address"
+        tags.append("unclassified")
+        intel["risk_score"] = 25
+
+    try:
+        reverse_dns = socket.gethostbyaddr(str(ip_obj))[0]
+        intel["reverse_dns"] = reverse_dns
+        tags.append("rdns_present")
+    except Exception:
+        if intel["is_global"]:
+            intel["risk_score"] += 5
+        tags.append("rdns_missing")
+
+    intel["tags"] = sorted(set(tags))
+    intel["risk_score"] = max(0, min(int(intel["risk_score"]), 100))
+    intel["risk_level"] = _risk_level_from_score(intel["risk_score"])
+    return intel
+
+
+def _apply_risk_scoring(log_entry):
+    intel = log_entry.get("source_intel") or {}
+    score = _coerce_int(intel.get("risk_score")) or 0
+
+    status = str(log_entry.get("status") or "").lower()
+    action = str(log_entry.get("action") or "").lower()
+    details = str(log_entry.get("details") or "").lower()
+
+    if status == "infiltration":
+        score += 35
+    elif status == "brute_force":
+        score += 22
+    elif status == "scan":
+        score += 18
+    elif status == "reconnaissance":
+        score += 12
+    elif status == "failed":
+        score += 8
+    elif status == "error":
+        score += 8
+
+    if "credential" in details or "password" in details:
+        score += 8
+    if action in {"command", "shell", "exec"}:
+        score += 10
+    if status == "unknown" and action in {"connection", "probe", "get", "request"}:
+        score += 6
+
+    score = max(0, min(int(score), 100))
+    level = _risk_level_from_score(score)
+
+    log_entry["risk_score"] = score
+    log_entry["risk_level"] = level
+
+    if isinstance(intel, dict):
+        intel["risk_score"] = score
+        intel["risk_level"] = level
+        log_entry["source_intel"] = intel
+
+
+def _infer_status_from_context(log_entry):
+    action = str(log_entry.get("action") or "").lower()
+    status = str(log_entry.get("status") or "").lower()
+    details_lower = str(log_entry.get("details") or "").lower()
+    intel = log_entry.get("source_intel") or {}
+
+    if status != "unknown":
+        return status, "status reported directly by the honeypot"
+
+    if action in {"process", "heartbeat", "startup", "start"}:
+        return "success", "service lifecycle event"
+
+    if action in {"connection", "probe", "get", "request"}:
+        if intel.get("is_global"):
+            return "reconnaissance", "external connection/probe from public IP"
+        return "success", "local/internal connection observed"
+
+    if action in {"login", "auth", "authentication"}:
+        if any(token in details_lower for token in ("fail", "denied", "invalid")):
+            return "brute_force", "failed authentication attempt"
+        if any(token in details_lower for token in ("accepted", "success", "authenticated")):
+            return "success", "authentication accepted"
+        return "brute_force", "authentication attempt with no success indicator"
+
+    if action in {"command", "exec", "shell"}:
+        return "infiltration", "command execution attempt"
+
+    return "unknown", "insufficient evidence for confident classification"
+
+
 def _normalize_status(raw_status, details_text=""):
     if raw_status is None:
         raw_status = ""
@@ -113,6 +300,8 @@ def _normalize_status(raw_status, details_text=""):
         "error": "error",
         "scan": "scan",
         "infiltration": "infiltration",
+        "reconnaissance": "reconnaissance",
+        "brute_force": "brute_force",
         "unknown": "unknown",
     }
     if status in mapping:
@@ -163,6 +352,32 @@ def _normalize_log_entry(log_entry):
         src_ip = normalized.get("ip")
     if src_ip:
         normalized["src_ip"] = src_ip
+
+    normalized["source_intel"] = _local_intel(str(src_ip or ""))
+
+    source_intel = normalized.get("source_intel") or {}
+    geo = normalized.get("geo") or {}
+    if isinstance(geo, dict):
+        country = normalized.get("country") or geo.get("country")
+        region = normalized.get("region") or geo.get("region") or geo.get("state")
+        city = normalized.get("city") or geo.get("city")
+        if country:
+            source_intel["country"] = country
+        if region:
+            source_intel["region"] = region
+        if city:
+            source_intel["city"] = city
+    else:
+        country = normalized.get("country")
+        region = normalized.get("region")
+        city = normalized.get("city")
+        if country:
+            source_intel["country"] = country
+        if region:
+            source_intel["region"] = region
+        if city:
+            source_intel["city"] = city
+    normalized["source_intel"] = source_intel
 
     src_port = normalized.get("src_port") or normalized.get("client_port")
     if src_port is not None:
@@ -225,14 +440,28 @@ def _classify_log_entry(log_entry):
     action = normalized.get("action")
     status = normalized.get("status")
 
+    inferred_status, reason = _infer_status_from_context(normalized)
+    normalized["status"] = inferred_status
+    normalized["status_reason"] = reason
+    status = normalized["status"]
+
     if action in {"login", "auth", "authentication", "command"} and status == "success":
         normalized["status"] = "infiltration"
+        normalized["status_reason"] = "authenticated or command-level interaction"
+        _apply_risk_scoring(normalized)
         return normalized
 
-    if _detect_scan(normalized) and status not in {"infiltration", "error"}:
+    # Promote plain "failed" on auth actions to brute_force
+    if action in {"login", "auth", "authentication"} and status == "failed":
+        normalized["status"] = "brute_force"
+        normalized["status_reason"] = "failed authentication attempt"
+
+    if _detect_scan(normalized) and status not in {"infiltration", "brute_force", "error"}:
         normalized["status"] = "scan"
         normalized["action"] = "scan"
+        normalized["status_reason"] = "high-frequency multi-target sweep"
 
+    _apply_risk_scoring(normalized)
     return normalized
 
 
