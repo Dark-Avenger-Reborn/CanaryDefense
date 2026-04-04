@@ -227,6 +227,8 @@ def _apply_risk_scoring(log_entry):
         score += 35
     elif status == "brute_force":
         score += 22
+    elif status == "connection":
+        score += 4
     elif status == "scan":
         score += 18
     elif status == "reconnaissance":
@@ -270,13 +272,21 @@ def _infer_status_from_context(log_entry):
     if action in {"connection", "probe", "get", "request"}:
         if intel.get("is_global"):
             return "reconnaissance", "external connection/probe from public IP"
-        return "success", "local/internal connection observed"
+        return "connection", "local/internal connection observed"
 
     if action in {"login", "auth", "authentication"}:
         if any(token in details_lower for token in ("fail", "denied", "invalid")):
             return "brute_force", "failed authentication attempt"
-        if any(token in details_lower for token in ("accepted", "success", "authenticated")):
-            return "success", "authentication accepted"
+        if any(token in details_lower for token in ("accepted", "success", "authenticated", "session opened", "logged in")):
+            return "infiltration", "authentication accepted"
+
+        has_auth_artifacts = any(
+            log_entry.get(key) not in (None, "", False)
+            for key in ("username", "user", "password", "credential", "cmd", "command")
+        )
+        if has_auth_artifacts:
+            return "infiltration", "captured interactive/authentication artifacts"
+
         return "brute_force", "authentication attempt with no success indicator"
 
     if action in {"command", "exec", "shell"}:
@@ -299,6 +309,7 @@ def _normalize_status(raw_status, details_text=""):
         "invalid": "failed",
         "error": "error",
         "scan": "scan",
+        "connection": "connection",
         "infiltration": "infiltration",
         "reconnaissance": "reconnaissance",
         "brute_force": "brute_force",

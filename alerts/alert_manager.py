@@ -12,8 +12,9 @@ import html
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple
+from zoneinfo import ZoneInfo
 
 from database.database_communicator import DatabaseCommunicator
 from .send_email import send_email
@@ -41,6 +42,34 @@ _pending_honeypot_down_lock = threading.Lock()
 _last_honeypot_down_sent: Dict[Tuple[str, str], float] = {}
 
 
+def _safe_text(value, fallback: str = "n/a") -> str:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null", "undefined"}:
+        return fallback
+    return text
+
+
+def _is_boot_success_log(log_entry: dict) -> bool:
+    if not isinstance(log_entry, dict):
+        return False
+
+    status = _safe_text(log_entry.get("status"), "").lower()
+    if status != "success":
+        return False
+
+    action = _safe_text(log_entry.get("action"), "").lower()
+    reason = _safe_text(log_entry.get("status_reason"), "").lower()
+    details = _safe_text(log_entry.get("details"), "").lower()
+
+    if reason == "service lifecycle event":
+        return True
+    if action in {"startup", "start", "boot", "init", "initialize", "process"}:
+        return True
+    return any(token in details for token in ("boot", "startup", "service started", "listening on", "initialized"))
+
+
 def _format_location(log: dict, intel: dict) -> str:
     city = intel.get("city") or log.get("city") or "Unknown"
     region = intel.get("region") or log.get("region") or "Unknown"
@@ -49,9 +78,52 @@ def _format_location(log: dict, intel: dict) -> str:
     return ", ".join(part if part else "Unknown" for part in parts)
 
 
+def _build_source_intel_text(log: dict, intel: dict) -> str:
+    intel = intel or {}
+    category = _safe_text(intel.get("category"), "unknown")
+    ip_version = _safe_text(intel.get("ip_version"), "unknown")
+    reverse_dns = _safe_text(intel.get("reverse_dns"), "n/a")
+    summary = _safe_text(intel.get("summary"), "No additional context")
+    tags = intel.get("tags") or []
+    tags_text = ", ".join(_safe_text(tag, "") for tag in tags if _safe_text(tag, "")) or "none"
+
+    if bool(intel.get("is_private")):
+        private_traits = []
+        if bool(intel.get("is_loopback")):
+            private_traits.append("loopback")
+        if bool(intel.get("is_link_local")):
+            private_traits.append("link-local")
+        private_traits.append("RFC1918/internal")
+        private_scope = ", ".join(sorted(set(private_traits)))
+
+        return (
+            f"private source ({ip_version}; {private_scope})"
+            f" | context: {summary}"
+            f" | reverse DNS: {reverse_dns}"
+            f" | tags: {tags_text}"
+            f" | src_port: {_safe_text(log.get('src_port'))}"
+            f" | dest_port: {_safe_text(log.get('dest_port'))}"
+        )
+
+    asn = _safe_text(intel.get("asn"), "")
+    org = _safe_text(intel.get("org"), "")
+    provider = _safe_text(intel.get("provider"), "")
+    extra = " | ".join(part for part in (asn, org, provider) if part)
+    extra_text = f" | profile: {extra}" if extra else ""
+
+    return (
+        f"{category} source ({ip_version})"
+        f" | context: {summary}"
+        f" | reverse DNS: {reverse_dns}"
+        f" | tags: {tags_text}"
+        f"{extra_text}"
+    )
+
+
 def _build_activity_summary(logs: List[dict]) -> dict:
     summary = {
         "total": len(logs),
+        "connection": 0,
         "infiltration": 0,
         "brute_force": 0,
         "reconnaissance": 0,
@@ -90,13 +162,24 @@ def _format_timestamp(iso_timestamp: str) -> str:
         Formatted timestamp string in local time (e.g., "Feb 16, 2026 14:30:45")
     """
     try:
-        dt = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
-        # Convert to local time if timestamp has timezone info
-        if dt.tzinfo is not None:
-            dt = dt.astimezone()
+        dt = datetime.fromisoformat(str(iso_timestamp).replace('Z', '+00:00'))
+
+        # Many logs are stored as naive ISO strings; treat them as UTC for consistency.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        tz_name = os.getenv("ALERT_EMAIL_TIMEZONE", "UTC").strip() or "UTC"
+        try:
+            tz_info = ZoneInfo(tz_name)
+        except Exception:
+            tz_info = timezone.utc
+        dt = dt.astimezone(tz_info)
+
         return dt.strftime("%b %d, %Y %H:%M:%S")
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError, TypeError):
         return iso_timestamp  # Return original if parsing fails
+    except Exception:
+        return str(iso_timestamp)
 
 
 def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
@@ -109,7 +192,7 @@ def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
         "",
         f"Total events collected: {summary['total']}",
         f"Unique source IPs: {summary['unique_sources']}",
-        f"Infiltration: {summary['infiltration']} | Brute Force: {summary['brute_force']} | Recon: {summary['reconnaissance']} | Scan: {summary['scan']} | Failed: {summary['failed']} | Error: {summary['error']}",
+        f"Connection: {summary['connection']} | Infiltration: {summary['infiltration']} | Brute Force: {summary['brute_force']} | Recon: {summary['reconnaissance']} | Scan: {summary['scan']} | Failed: {summary['failed']} | Error: {summary['error']}",
         f"High/Critical risk events: {summary['high_risk']}",
         ""
     ]
@@ -117,23 +200,22 @@ def _build_activity_body(uid: str, honeypot_id: str, logs: List[dict]) -> str:
         timestamp_raw = log.get('timestamp', 'n/a')
         timestamp_formatted = _format_timestamp(timestamp_raw) if timestamp_raw != 'n/a' else 'n/a'
         intel = log.get("source_intel") or {}
-        intel_tags = intel.get("tags") or []
-        tags_text = ",".join(str(tag) for tag in intel_tags) if intel_tags else "none"
         location_text = _format_location(log, intel)
+        intel_text = _build_source_intel_text(log, intel)
         lines.append(
             " - "
             + " | ".join(
                 [
-                    f"timestamp={timestamp_formatted}",
-                    f"action={log.get('action', 'n/a')}",
-                    f"src_ip={log.get('src_ip', log.get('source_ip', 'n/a'))}",
-                    f"dest_ip={log.get('dest_ip', log.get('destination_ip', 'n/a'))}",
-                    f"protocol={log.get('protocol', log.get('server', 'n/a'))}",
-                    f"status={log.get('status', 'n/a')}",
-                    f"reason={log.get('status_reason', 'n/a')}",
-                    f"risk={log.get('risk_score', 'n/a')} ({log.get('risk_level', 'n/a')})",
+                    f"timestamp={_safe_text(timestamp_formatted)}",
+                    f"action={_safe_text(log.get('action'))}",
+                    f"src_ip={_safe_text(log.get('src_ip', log.get('source_ip')))}",
+                    f"dest_ip={_safe_text(log.get('dest_ip', log.get('destination_ip')))}",
+                    f"protocol={_safe_text(log.get('protocol', log.get('server')))}",
+                    f"status={_safe_text(log.get('status'))}",
+                    f"reason={_safe_text(log.get('status_reason'))}",
+                    f"risk={_safe_text(log.get('risk_score'))} ({_safe_text(log.get('risk_level'))})",
                     f"location={location_text}",
-                    f"intel={intel.get('category', 'n/a')} / rdns={intel.get('reverse_dns', 'Unknown')} / tags={tags_text}",
+                    f"intel={intel_text}",
                 ]
             )
         )
@@ -149,6 +231,7 @@ def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
     safe_user_email = html.escape(str(user_email))
     safe_total = html.escape(str(len(logs)))
     safe_unique_sources = html.escape(str(summary["unique_sources"]))
+    safe_connection = html.escape(str(summary["connection"]))
     safe_high_risk = html.escape(str(summary["high_risk"]))
     safe_infiltration = html.escape(str(summary["infiltration"]))
     safe_brute_force = html.escape(str(summary["brute_force"]))
@@ -162,27 +245,19 @@ def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
         timestamp_raw = log.get('timestamp', 'n/a')
         timestamp_formatted = _format_timestamp(timestamp_raw) if timestamp_raw != 'n/a' else 'n/a'
         intel = log.get("source_intel") or {}
-        intel_tags = intel.get("tags") or []
-        tags_text = ", ".join(str(tag) for tag in intel_tags) if intel_tags else "none"
-        location_text = _format_location(log, intel)
-        risk_value = f"{log.get('risk_score', 'n/a')} ({log.get('risk_level', 'n/a')})"
-        intel_value = (
-            f"{intel.get('category', 'n/a')}"
-            f" | location: {location_text}"
-            f" | rdns: {intel.get('reverse_dns', 'Unknown')}"
-            f" | tags: {tags_text}"
-        )
+        intel_value = _build_source_intel_text(log, intel)
+        risk_value = f"{_safe_text(log.get('risk_score'))} ({_safe_text(log.get('risk_level'))})"
         rows.append(
             "".join(
                 [
                     "<tr>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(timestamp_formatted))}</td>",
-                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('action', 'n/a')))}</td>",
-                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('src_ip', log.get('source_ip', 'n/a'))))}</td>",
-                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('dest_ip', log.get('destination_ip', 'n/a'))))}</td>",
-                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('protocol', log.get('server', 'n/a'))))}</td>",
-                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('status', 'n/a')))}</td>",
-                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(str(log.get('status_reason', 'n/a')))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(_safe_text(log.get('action')))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(_safe_text(log.get('src_ip', log.get('source_ip'))))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(_safe_text(log.get('dest_ip', log.get('destination_ip'))))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(_safe_text(log.get('protocol', log.get('server'))))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(_safe_text(log.get('status')))}</td>",
+                    f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(_safe_text(log.get('status_reason')))}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(risk_value)}</td>",
                     f"<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;\">{html.escape(intel_value)}</td>",
                     "</tr>",
@@ -208,7 +283,7 @@ def _build_activity_html(uid: str, honeypot_id: str, logs: List[dict]) -> str:
         f"<div style=\"font-size:14px;margin-bottom:6px;\"><strong>Account:</strong> {safe_user_email}</div>"
         f"<div style=\"font-size:14px;color:#374151;\"><strong>Total events collected:</strong> {safe_total}</div>"
         f"<div style=\"font-size:14px;color:#374151;margin-top:4px;\"><strong>Unique source IPs:</strong> {safe_unique_sources}</div>"
-        f"<div style=\"font-size:14px;color:#374151;margin-top:4px;\"><strong>Infiltration:</strong> {safe_infiltration} &nbsp;|&nbsp; <strong>Brute Force:</strong> {safe_brute_force} &nbsp;|&nbsp; <strong>Recon:</strong> {safe_reconnaissance} &nbsp;|&nbsp; <strong>Scan:</strong> {safe_scan} &nbsp;|&nbsp; <strong>Failed:</strong> {safe_failed} &nbsp;|&nbsp; <strong>Error:</strong> {safe_error}</div>"
+        f"<div style=\"font-size:14px;color:#374151;margin-top:4px;\"><strong>Connection:</strong> {safe_connection} &nbsp;|&nbsp; <strong>Infiltration:</strong> {safe_infiltration} &nbsp;|&nbsp; <strong>Brute Force:</strong> {safe_brute_force} &nbsp;|&nbsp; <strong>Recon:</strong> {safe_reconnaissance} &nbsp;|&nbsp; <strong>Scan:</strong> {safe_scan} &nbsp;|&nbsp; <strong>Failed:</strong> {safe_failed} &nbsp;|&nbsp; <strong>Error:</strong> {safe_error}</div>"
         f"<div style=\"font-size:14px;color:#374151;margin-top:4px;\"><strong>High/Critical risk events:</strong> {safe_high_risk}</div>"
         "</td></tr>"
         "<tr><td style=\"padding:0 24px 24px 24px;\">"
@@ -325,6 +400,9 @@ def _finalize_pending(key: Tuple[str, str]):
 
 def record_suspicious_activity(uid: str, honeypot_id: str, log_entry: dict):
     """Queue an activity alert if preferences allow it."""
+    if _is_boot_success_log(log_entry):
+        return
+
     user_data = _db.get_user_entry(uid)
     if not user_data.get("success"):
         return

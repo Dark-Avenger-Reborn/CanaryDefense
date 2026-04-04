@@ -719,6 +719,12 @@ textarea:focus {
     border: 1px solid rgba(22, 163, 74, 0.3);
 }
 
+.status-pill.connection {
+    background: rgba(20, 184, 166, 0.24);
+    color: #134e4a;
+    border: 1px solid rgba(20, 184, 166, 0.58);
+}
+
 .status-pill.failed {
     background: rgba(225, 29, 72, 0.15);
     color: #9f1239;
@@ -771,6 +777,12 @@ textarea:focus {
     background: rgba(148, 163, 184, 0.15);
     color: #475569;
     border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+[data-theme="dark"] .status-pill.connection {
+    background: rgba(45, 212, 191, 0.34);
+    color: #ccfbf1;
+    border: 1px solid rgba(45, 212, 191, 0.72);
 }
 
 .card-list {

@@ -154,6 +154,41 @@ class DatabaseCommunicator:
             total_logs
         )
 
+    def _is_boot_success_log(self, log_entry):
+        """Detect boot/service startup success events that should be hidden from user-facing logs."""
+        if not isinstance(log_entry, dict):
+            return False
+
+        status = str(log_entry.get("status") or "").strip().lower()
+        if status != "success":
+            return False
+
+        action = str(log_entry.get("action") or "").strip().lower()
+        reason = str(log_entry.get("status_reason") or "").strip().lower()
+        details = str(log_entry.get("details") or "").strip().lower()
+
+        if reason == "service lifecycle event":
+            return True
+
+        startup_actions = {"startup", "start", "boot", "init", "initialize", "process"}
+        if action in startup_actions:
+            return True
+
+        startup_tokens = ("boot", "startup", "service started", "listening on", "initialized")
+        return any(token in details for token in startup_tokens)
+
+    def _filter_visible_logs(self, logs):
+        if not isinstance(logs, list):
+            return []
+        return [entry for entry in logs if not self._is_boot_success_log(entry)]
+
+    def _sanitize_honeypot_for_display(self, honeypot):
+        if not isinstance(honeypot, dict):
+            return honeypot
+        sanitized = dict(honeypot)
+        sanitized["logs"] = self._filter_visible_logs(honeypot.get("logs", []))
+        return sanitized
+
     def create_user_entry(self, uid, email):
         """
         Create a new user entry in the database with the Firebase UID.
@@ -260,7 +295,7 @@ class DatabaseCommunicator:
                 owned = {}
                 for hp_id, hp_data in user_data.get("honeypots", {}).items():
                     owned[hp_id] = {
-                        **hp_data,
+                        **self._sanitize_honeypot_for_display(hp_data),
                         "shared": False,
                         "owner_uid": uid,
                         "access_role": "owner",
@@ -283,7 +318,7 @@ class DatabaseCommunicator:
                             continue
                         access = collaborators.get(uid, {})
                         shared[hp_id] = {
-                            **hp_data,
+                            **self._sanitize_honeypot_for_display(hp_data),
                             "shared": True,
                             "owner_uid": owner_uid,
                             "access_role": access.get("role", "read"),
@@ -761,7 +796,11 @@ class DatabaseCommunicator:
                 if user_data is None:
                     return {"success": False, "error": "User not found"}
 
-                return {"success": True, "honeypots": user_data.get("honeypots", {})}
+                honeypots = {
+                    hp_id: self._sanitize_honeypot_for_display(hp_data)
+                    for hp_id, hp_data in user_data.get("honeypots", {}).items()
+                }
+                return {"success": True, "honeypots": honeypots}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -786,7 +825,7 @@ class DatabaseCommunicator:
                 if honeypot_id not in honeypots:
                     return {"success": False, "error": "Honeypot not found"}
 
-                return {"success": True, "honeypot": honeypots[honeypot_id]}
+                return {"success": True, "honeypot": self._sanitize_honeypot_for_display(honeypots[honeypot_id])}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -878,6 +917,13 @@ class DatabaseCommunicator:
                             "message": "Log ignored (before clear cutoff)"
                         }
 
+                if self._is_boot_success_log(log_entry):
+                    return {
+                        "success": True,
+                        "ignored": True,
+                        "message": "Log ignored (boot/startup success event)"
+                    }
+
                 honeypot.setdefault("logs", []).append(log_entry)
                 user_data["stats"]["total_logs_captured"] += 1
                 honeypot["last_active"] = datetime.now().isoformat()
@@ -908,7 +954,8 @@ class DatabaseCommunicator:
                 if honeypot_id not in honeypots:
                     return {"success": False, "error": "Honeypot not found"}
 
-                return {"success": True, "logs": honeypots[honeypot_id].get("logs", [])}
+                logs = self._filter_visible_logs(honeypots[honeypot_id].get("logs", []))
+                return {"success": True, "logs": logs}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
