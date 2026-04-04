@@ -39,6 +39,8 @@ app.register_blueprint(honeypot_api_bp)
 
 db = DatabaseCommunicator()
 BRAND_NAME_FILE = Path("config/brand_name.txt")
+CONTACT_NAME_FILE = Path("config/contact_name.txt")
+CONTACT_EMAIL_FILE = Path("config/contact_email.txt")
 
 
 def get_public_base_url():
@@ -64,11 +66,38 @@ def load_brand_name():
         return "Honeypot Control"
 
 
+def _read_config_text(path: Path):
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+        return value or None
+    except FileNotFoundError:
+        return None
+
+
+def load_contact_name():
+    return (
+        _read_config_text(CONTACT_NAME_FILE)
+        or (os.getenv("CONTACT_NAME") or "").strip()
+        or "Canary Defense Team"
+    )
+
+
+def load_contact_email():
+    return (
+        _read_config_text(CONTACT_EMAIL_FILE)
+        or (os.getenv("CONTACT_EMAIL") or "").strip()
+        or (os.getenv("SMTP_SENDER") or "").strip()
+        or "support@canarydefense.com"
+    )
+
+
 @app.context_processor
 def inject_brand_name():
     return {
         "brand_name": load_brand_name(),
-        "public_base_url": get_public_base_url()
+        "public_base_url": get_public_base_url(),
+        "contact_email": load_contact_email(),
+        "contact_name": load_contact_name(),
     }
 
 
@@ -161,6 +190,11 @@ def public_counts():
         "total_honeypots": counts.get('total_honeypots', 0),
         "total_logs": counts.get('total_logs', 0)
     })
+
+
+@app.route('/contact')
+def contact():
+    return render_template('contact.html', logged_in=is_logged_in())
 
 
 @app.route('/robots.txt')

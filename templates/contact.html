@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact - {{ brand_name }}</title>
+    <script>
+        (function () {
+            try {
+                const savedTheme = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+                document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#f7fafc';
+            } catch (error) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="page" data-brand-name="{{ brand_name }}" data-contact-email="{{ contact_email }}">
+    <div class="shell">
+        <div class="top-bar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <div>
+                    <h1>Contact</h1>
+                    <p>Reach the {{ brand_name }} team.</p>
+                </div>
+            </div>
+            <div class="nav">
+                {% if logged_in %}
+                <a href="/">Dashboard</a>
+                <a href="/honeypots">Honeypots</a>
+                <a href="/logs">Logs</a>
+                <a href="/alerts/config">Alerts</a>
+                <a href="/settings">Settings</a>
+                <a class="nav-primary" href="/logout">Logout</a>
+                {% else %}
+                <a href="/">Home</a>
+                <a href="/honeypots">Explore</a>
+                <a href="/login">Login</a>
+                <a class="nav-primary" href="/create_account">Create account</a>
+                {% endif %}
+                <button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+            </div>
+        </div>
+
+        <div class="card contact-card">
+            <div class="section-title">
+                <h2>Get in touch</h2>
+                <p>For support, account issues, or collaboration questions.</p>
+            </div>
+            <div class="contact-grid">
+                <div class="contact-line">
+                    <strong>Contact name</strong>
+                    <span>{{ contact_name }}</span>
+                </div>
+                <div class="contact-line">
+                    <strong>Email</strong>
+                    <a class="contact-link" href="mailto:{{ contact_email }}">{{ contact_email }}</a>
+                </div>
+                <div class="contact-line">
+                    <strong>Website</strong>
+                    <a class="contact-link" href="{{ public_base_url }}">{{ public_base_url }}</a>
+                </div>
+                <div class="contact-line">
+                    <strong>Response window</strong>
+                    <span>Typically within 1 business day.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+</body>
+</html>
