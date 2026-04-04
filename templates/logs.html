@@ -210,8 +210,6 @@
         const honeypotStatus = document.getElementById('honeypot-status');
         const honeypotProtocols = document.getElementById('honeypot-protocols');
         const statTotalLogs = document.getElementById('stat-total-logs');
-        const statSuccessLogs = document.getElementById('stat-success-logs');
-        const statFailedLogs = document.getElementById('stat-failed-logs');
         const statScanLogs = document.getElementById('stat-scan-logs');
         const statInfiltrationLogs = document.getElementById('stat-infiltration-logs');
         const statUniqueIps = document.getElementById('stat-unique-ips');
@@ -361,20 +359,12 @@
 
         function updateStats(logs) {
             const totalLogs = logs.length;
-            const successCount = logs.filter(log => log.status === 'success').length;
-            const failedCount = logs.filter(log => log.status === 'failed').length;
             const scanCount = logs.filter(log => log.status === 'scan').length;
             const infiltrationCount = logs.filter(log => log.status === 'infiltration').length;
             const uniqueIps = new Set(logs.map(log => log.src_ip).filter(Boolean)).size;
 
             if (statTotalLogs) {
                 statTotalLogs.textContent = totalLogs;
-            }
-            if (statSuccessLogs) {
-                statSuccessLogs.textContent = successCount;
-            }
-            if (statFailedLogs) {
-                statFailedLogs.textContent = failedCount;
             }
             if (statScanLogs) {
                 statScanLogs.textContent = scanCount;
