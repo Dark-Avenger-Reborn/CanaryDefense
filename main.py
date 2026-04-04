@@ -41,6 +41,7 @@ db = DatabaseCommunicator()
 BRAND_NAME_FILE = Path("config/brand_name.txt")
 CONTACT_NAME_FILE = Path("config/contact_name.txt")
 CONTACT_EMAIL_FILE = Path("config/contact_email.txt")
+CONTACT_WEBSITE_FILE = Path("config/contact_website.txt")
 
 
 def get_public_base_url():
@@ -87,7 +88,16 @@ def load_contact_email():
         _read_config_text(CONTACT_EMAIL_FILE)
         or (os.getenv("CONTACT_EMAIL") or "").strip()
         or (os.getenv("SMTP_SENDER") or "").strip()
-        or "support@canarydefense.com"
+        or ""
+    )
+
+
+def load_contact_website():
+    return (
+        _read_config_text(CONTACT_WEBSITE_FILE)
+        or (os.getenv("CONTACT_WEBSITE") or "").strip()
+        or (os.getenv("BASE_URL") or "").strip().rstrip('/')
+        or ""
     )
 
 
@@ -98,6 +108,7 @@ def inject_brand_name():
         "public_base_url": get_public_base_url(),
         "contact_email": load_contact_email(),
         "contact_name": load_contact_name(),
+        "contact_website": load_contact_website(),
     }
 
 
@@ -189,6 +200,17 @@ def public_counts():
         "total_accounts": counts.get('total_users', 0),
         "total_honeypots": counts.get('total_honeypots', 0),
         "total_logs": counts.get('total_logs', 0)
+    })
+
+
+@app.route('/api/contact_info')
+def contact_info():
+    return jsonify({
+        "success": True,
+        "brand_name": load_brand_name(),
+        "contact_name": load_contact_name(),
+        "contact_email": load_contact_email(),
+        "contact_website": load_contact_website(),
     })
 
 

@@ -65,20 +65,45 @@ function ensureGlobalFooter() {
     const footer = document.createElement('footer');
     footer.className = 'global-footer';
 
-    const supportEmail = document.body?.dataset?.contactEmail || 'support@canarydefense.com';
-    const brand = document.body?.dataset?.brandName || 'Canary Defense';
-
-    footer.innerHTML = [
-        '<div class="global-footer-inner">',
-        `<span class="global-footer-brand">${brand}</span>`,
-        '<span class="global-footer-sep">|</span>',
-        '<a href="/contact">Contact</a>',
-        '<span class="global-footer-sep">|</span>',
-        `<a href="mailto:${supportEmail}">${supportEmail}</a>`,
-        '</div>'
-    ].join('');
+    footer.innerHTML = '<div class="global-footer-inner"></div>';
 
     document.body.appendChild(footer);
+    populateGlobalFooter(footer);
+}
+
+async function populateGlobalFooter(footer) {
+    const inner = footer.querySelector('.global-footer-inner');
+    if (!inner) {
+        return;
+    }
+
+    let brand = document.body?.dataset?.brandName || '';
+    let supportEmail = document.body?.dataset?.contactEmail || '';
+
+    if (!brand || !supportEmail) {
+        try {
+            const response = await fetch('/api/contact_info', { cache: 'no-store' });
+            const payload = await response.json();
+            if (response.ok && payload && payload.success) {
+                brand = brand || payload.brand_name || '';
+                supportEmail = supportEmail || payload.contact_email || '';
+            }
+        } catch (error) {
+            // Keep fallback values if endpoint is unavailable.
+        }
+    }
+
+    const safeBrand = brand || 'Honeypot Control';
+    const emailSection = supportEmail
+        ? `<span class="global-footer-sep">|</span><a href="mailto:${supportEmail}">${supportEmail}</a>`
+        : '';
+
+    inner.innerHTML = [
+        `<span class="global-footer-brand">${safeBrand}</span>`,
+        '<span class="global-footer-sep">|</span>',
+        '<a href="/contact">Contact</a>',
+        emailSection
+    ].join('');
 }
 
 // Initialize when DOM is ready
