@@ -14,6 +14,60 @@ from datetime import datetime
 import socketio
 from honeypots import *
 
+
+# Lightweight retry decorator with exponential backoff + jitter
+def retry(max_attempts=4, base=0.5, max_backoff=10.0):
+    def deco(fn):
+        def wrapper(*a, **kw):
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return fn(*a, **kw)
+                except Exception:
+                    if attempt == max_attempts:
+                        raise
+                    backoff = min(max_backoff, base * (2 ** (attempt - 1)))
+                    backoff *= 0.8 + 0.4 * (time.time() % 1)  # cheap jitter
+                    time.sleep(backoff)
+        return wrapper
+    return deco
+
+
+# Simple rolling-window circuit breaker
+import collections
+
+
+class CircuitBreaker:
+    def __init__(self, window_seconds=60, error_threshold=0.5, min_calls=3, open_seconds=60):
+        self.window = window_seconds
+        self.error_threshold = float(error_threshold)
+        self.min_calls = int(min_calls)
+        self.open_seconds = int(open_seconds)
+        self.calls = collections.deque()
+        self.errors = collections.deque()
+        self.open_until = 0
+
+    def _trim(self):
+        cutoff = time.time() - self.window
+        while self.calls and self.calls[0] < cutoff:
+            self.calls.popleft()
+        while self.errors and self.errors[0] < cutoff:
+            self.errors.popleft()
+
+    def record(self, success: bool):
+        now = time.time()
+        self.calls.append(now)
+        if not success:
+            self.errors.append(now)
+        self._trim()
+        if len(self.calls) >= self.min_calls:
+            err_rate = (len(self.errors) / len(self.calls)) if self.calls else 0.0
+            if err_rate >= self.error_threshold:
+                self.open_until = now + self.open_seconds
+
+    def allow(self) -> bool:
+        return time.time() >= self.open_until
+
+
 CONFIG_FILENAME = "config.json"
 
 DEFAULT_CONFIG = {
@@ -206,6 +260,16 @@ class HoneypotClient:
         self.protocol_settings = config.get("protocol_settings", {})
         self.honeypots_config_path = config.get("honeypots_config_path", "")
 
+        # Per-protocol circuit breakers to avoid repeated failing starts
+        self.circuit_breakers = {}
+        # default breaker settings (can be overridden per-protocol in protocol_settings)
+        self._breaker_defaults = {
+            "window_seconds": 60,
+            "error_threshold": 0.5,
+            "min_calls": 3,
+            "open_seconds": 60,
+        }
+
         self._setup_log_capture()
 
         self.honeypots = {}
@@ -347,15 +411,39 @@ class HoneypotClient:
         if self.honeypots_config_path:
             kwargs["config"] = self.honeypots_config_path
 
-        try:
+        # ensure a circuit breaker exists for this protocol
+        cb = self.circuit_breakers.get(protocol)
+        if cb is None:
+            pconf = settings.get("breaker", {}) if isinstance(settings, dict) else {}
+            conf = dict(self._breaker_defaults)
+            conf.update(pconf)
+            cb = CircuitBreaker(
+                window_seconds=conf.get("window_seconds"),
+                error_threshold=conf.get("error_threshold"),
+                min_calls=conf.get("min_calls"),
+                open_seconds=conf.get("open_seconds"),
+            )
+            self.circuit_breakers[protocol] = cb
+
+        if not cb.allow():
+            logger.warning("Circuit open for %s; skipping start until %s", protocol, time.ctime(cb.open_until))
+            return
+
+        @retry(max_attempts=4, base=0.5, max_backoff=8.0)
+        def _attempt_start():
             if not self._wait_for_port_release(port):
-                logger.error("Port %s still in use; skipping start for %s", port, protocol)
-                return
-            honeypot = server_class(**kwargs)
-            honeypot.run_server(process=True)
+                raise RuntimeError(f"Port {port} still in use")
+            hp = server_class(**kwargs)
+            hp.run_server(process=True)
+            return hp
+
+        try:
+            honeypot = _attempt_start()
             self.honeypots[protocol] = honeypot
+            cb.record(True)
             logger.info("Started %s honeypot on port %s", protocol, port)
         except Exception as exc:
+            cb.record(False)
             logger.error("Failed to start %s honeypot: %s", protocol, exc)
 
     def stop_protocol(self, protocol):
@@ -383,8 +471,10 @@ class HoneypotClient:
     def start_background_tasks(self):
         log_thread = threading.Thread(target=self._watch_logs, daemon=True)
         heartbeat_thread = threading.Thread(target=self._send_heartbeats, daemon=True)
+        monitor_thread = threading.Thread(target=self._watch_circuit_breakers, daemon=True)
         log_thread.start()
         heartbeat_thread.start()
+        monitor_thread.start()
 
     def _watch_logs(self):
         logs_dir = os.path.join(os.getcwd(), self.log_dir)
@@ -438,6 +528,28 @@ class HoneypotClient:
             except Exception as exc:
                 logger.debug("Heartbeat error: %s", exc)
             time.sleep(self.heartbeat_interval)
+
+    def _watch_circuit_breakers(self, interval=10):
+        """Background watcher that attempts a gentle restart when circuit breakers open and expire."""
+        while not self.stop_event.is_set():
+            try:
+                for protocol, cb in list(self.circuit_breakers.items()):
+                    # if circuit is closed, nothing to do
+                    if cb.allow():
+                        continue
+                    # if open but expiration near, log and continue
+                    if time.time() >= cb.open_until:
+                        logger.info("Circuit for %s expired; will allow next start attempts", protocol)
+                    # If protocol not running, attempt a single restart probe
+                    if protocol not in self.honeypots and time.time() >= cb.open_until:
+                        try:
+                            logger.info("Probe restart for protocol %s", protocol)
+                            self.start_protocol(protocol)
+                        except Exception as e:
+                            logger.debug("Probe restart failed for %s: %s", protocol, e)
+            except Exception as e:
+                logger.debug("Circuit watcher error: %s", e)
+            time.sleep(interval)
 
     def run(self):
         self.connect()

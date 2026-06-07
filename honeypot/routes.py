@@ -217,3 +217,29 @@ def get_honeypot_logs(honeypot_id):
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+
+@honeypot_api_bp.route('/health', methods=['GET'])
+def health():
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    uid = session.get('uid')
+    access = db.resolve_honeypot_access(uid, honeypot_id)
+    if not access.get("success"):
+        return jsonify({'error': access.get('error')}), 403
+
+    """Return a lightweight health/availability snapshot for honeypots.
+    This is intentionally minimal to avoid cluttering the dashboard.
+    """
+    try:
+        connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
+        return jsonify({
+            'success': True,
+            'connected_count': len(connected_honeypot_ids),
+            'connected_ids': list(connected_honeypot_ids),
+        }), 200
+    except Exception as e:
+        logger.debug("Health endpoint error: %s", e)
+        return jsonify({'success': False, 'error': str(e)}), 500
