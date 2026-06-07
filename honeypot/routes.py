@@ -226,15 +226,12 @@ def health():
         return jsonify({'error': 'Unauthorized'}), 401
 
     uid = session.get('uid')
-    access = db.resolve_honeypot_access(uid, honeypot_id)
-    if not access.get("success"):
-        return jsonify({'error': access.get('error')}), 403
 
     """Return a lightweight health/availability snapshot for honeypots.
     This is intentionally minimal to avoid cluttering the dashboard.
     """
     try:
-        connected_honeypot_ids = {auth_info['honeypot_id'] for auth_info in authenticated_honeypots.values()}
+        connected_honeypot_ids = db.list_accessible_honeypots(uid)
         return jsonify({
             'success': True,
             'connected_count': len(connected_honeypot_ids),
