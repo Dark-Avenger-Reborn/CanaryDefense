@@ -35,8 +35,7 @@
         }
 
         .filter-form input,
-        .filter-form select,
-        .filter-form button {
+        .filter-form select {
             padding: 0.5rem 1rem;
             border-radius: 0.375rem;
             border: 1px solid var(--border);
@@ -54,10 +53,7 @@
             border: 2px solid var(--accent);
         }
 
-        .filter-form select,
-        .filter-form button,
-        .filter-controls .btn,
-        .filter-chip {
+        .filter-form select {
             border-width: 2px;
         }
 
@@ -66,7 +62,6 @@
             color: var(--ink);
         }
 
-        .filter-form button,
         .filter-form select {
             cursor: pointer;
         }
@@ -76,33 +71,6 @@
             outline: none;
             border-color: var(--accent);
             box-shadow: 0 0 0 2px var(--ring);
-        }
-
-        .quick-filters {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-
-        .filter-chip {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.35rem 0.75rem;
-            border-radius: 999px;
-            border: 1px solid var(--border);
-            color: var(--ink);
-            text-decoration: none;
-            font-size: 0.8rem;
-            background: var(--surface-2);
-        }
-
-        .filter-chip:hover {
-            border-color: var(--accent);
-        }
-
-        .filter-chip.active {
-            border-color: var(--accent);
-            background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
         }
 
         .pagination {
@@ -216,8 +184,7 @@
 
             .filter-form input,
             .filter-form select,
-            .filter-form button,
-            .filter-controls .btn {
+            .filter-form select {
                 width: 100%;
             }
 
@@ -279,7 +246,7 @@
             </div>
 
             <div class="filter-controls">
-                <form method="get" class="filter-form">
+                <form method="get" class="filter-form" onchange="this.submit()">
                     <input type="text" name="q" value="{{ query_filter }}" placeholder="Search by honeypot, actor, or action">
                     <select id="action" name="action">
                         <option value="">All actions</option>
@@ -292,16 +259,7 @@
                         <option value="20" {% if per_page == 20 %}selected{% endif %}>20 / page</option>
                         <option value="50" {% if per_page == 50 %}selected{% endif %}>50 / page</option>
                     </select>
-                    <button type="submit">Apply</button>
                 </form>
-                <a href="{{ url_for('activity_history') }}" class="btn btn-ghost">Clear Filters</a>
-
-                <div class="quick-filters">
-                    <a class="filter-chip {% if not action_filter %}active{% endif %}" href="{{ url_for('activity_history', q=query_filter, per_page=per_page) }}">All</a>
-                    {% for action_key, action_label in action_options %}
-                    <a class="filter-chip {% if action_filter == action_key %}active{% endif %}" href="{{ url_for('activity_history', action=action_key, q=query_filter, per_page=per_page) }}">{{ action_label }}</a>
-                    {% endfor %}
-                </div>
             </div>
 
             {% if activity %}

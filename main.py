@@ -371,9 +371,9 @@ def activity_history():
             entry["action_style"] = "deleted"
         elif "create" in action_key:
             entry["action_style"] = "created"
-        elif "activate" in action_key or "start" in action_key:
+        elif "activate" in action_key or "start" in action_key or action_key == "honeypot_online":
             entry["action_style"] = "activated"
-        elif "deactivate" in action_key or "stop" in action_key:
+        elif "deactivate" in action_key or "stop" in action_key or action_key == "honeypot_offline":
             entry["action_style"] = "deactivated"
         elif "update" in action_key:
             entry["action_style"] = "updated"

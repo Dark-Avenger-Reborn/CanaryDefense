@@ -538,12 +538,19 @@ def handle_disconnect():
             
             # Clean up the honeypot status
             try:
-                db.update_honeypot(
+                result = db.update_honeypot(
                     uid,
                     honeypot_id,
                     is_active=False,
                     last_active=datetime.now().isoformat()
                 )
+                if result.get("success"):
+                    db.record_activity(
+                        uid,
+                        "honeypot_offline",
+                        honeypot_id=honeypot_id,
+                        details={"reason": "Connection lost"},
+                    )
             except Exception as e:
                 logger.error(f"Error updating honeypot status on disconnect: {str(e)}")
             
@@ -614,6 +621,12 @@ def handle_honeypot_connect(data):
         )
         
         if result['success']:
+            db.record_activity(
+                uid,
+                "honeypot_online",
+                honeypot_id=honeypot_id,
+                details={"protocols": configured_protocols},
+            )
             # Suppress transient down alerts when the honeypot reconnects quickly.
             clear_pending_honeypot_down_alert(uid, honeypot_id)
 
@@ -680,6 +693,12 @@ def handle_honeypot_disconnect(data):
         )
         
         if result['success']:
+            db.record_activity(
+                uid,
+                "honeypot_offline",
+                honeypot_id=honeypot_id,
+                details={"reason": reason},
+            )
             # Leave honeypot-specific room
             room_name = f"honeypot_{honeypot_id}"
             leave_room(room_name)

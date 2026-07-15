@@ -1075,14 +1075,24 @@ class DatabaseCommunicator:
 
                     honeypots = user_data.get("honeypots", {})
                     changed = False
-                    for honeypot in honeypots.values():
+                    activity_log = user_data.setdefault("activity_log", [])
+                    for honeypot_id, honeypot in honeypots.items():
                         if honeypot.get("is_active"):
                             honeypot["is_active"] = False
                             honeypot["last_active"] = recovered_last_active
+                            activity_log.append({
+                                "timestamp": recovered_last_active,
+                                "action": "honeypot_offline",
+                                "honeypot_id": honeypot_id,
+                                "actor_uid": None,
+                                "actor_username": None,
+                                "details": {"reason": "Server restart recovery"},
+                            })
                             recovered_count += 1
                             changed = True
 
                     if changed:
+                        user_data["activity_log"] = activity_log[-200:]
                         self._save_user_data(conn, uid, user_data)
 
             return {
