@@ -219,11 +219,15 @@ for port in "${PORTS[@]}"; do
 	for proto in tcp udp; do
 		case "$ACTION" in
 			apply)
+				# Older installers redirected local traffic too. That intercepts the
+				# host's own DNS requests to 127.0.0.53:53, so remove those rules
+				# during upgrades before enabling the external redirect.
+				remove_rule OUTPUT "$proto" "$port" "$mapped" -m addrtype --dst-type LOCAL
 				add_rule PREROUTING "$proto" "$port" "$mapped"
-				add_rule OUTPUT "$proto" "$port" "$mapped" -m addrtype --dst-type LOCAL
 				;;
 			remove)
 				remove_rule PREROUTING "$proto" "$port" "$mapped"
+				# Also remove legacy local-host rules when stopping the service.
 				remove_rule OUTPUT "$proto" "$port" "$mapped" -m addrtype --dst-type LOCAL
 				;;
 			*)
@@ -262,7 +266,12 @@ WantedBy=multi-user.target
 EOF
 
 	systemctl daemon-reload
-	if ! systemctl enable --now honeypot-port-map.service; then
+	if ! systemctl enable honeypot-port-map.service; then
+		return 1
+	fi
+	# Restart even when the unit was already active so an installer upgrade
+	# replaces any legacy local-host redirects immediately.
+	if ! systemctl restart honeypot-port-map.service; then
 		return 1
 	fi
 	PORT_MAPPING_MANAGED_BY_SYSTEMD="yes"

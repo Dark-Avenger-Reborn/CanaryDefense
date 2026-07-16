@@ -39,7 +39,7 @@
                 <h2>Native ports vs. backup ports</h2>
                 <p>Honeypot services run on backup ports so they do not need to bind to privileged or commonly occupied native ports.</p>
             </div>
-            <p style="margin-top: 16px;">When native ports are selected (the default), the installer applies iptables redirects from each native port to its backup port and restores them at boot. When you select backup ports in the install dialog, no redirects are created; connect to the backup ports listed below instead. Redirect rules cover both TCP and UDP, including local connections to the host.</p>
+            <p style="margin-top: 16px;">When native ports are selected (the default), the installer applies iptables redirects from each native port to its backup port and restores them at boot. When you select backup ports in the install dialog, no redirects are created; connect to the backup ports listed below instead. Redirect rules cover both TCP and UDP for incoming network traffic.</p>
         </div>
 
         <div class="card fade-up" style="margin-top: 24px;">
