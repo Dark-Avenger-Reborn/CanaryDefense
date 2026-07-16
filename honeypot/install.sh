@@ -15,6 +15,7 @@ HONEYPOT_ID=""
 # an operator explicitly chooses backup ports for a deployment.
 MAP_PORTS="yes"
 PORT_OFFSET="$PORT_OFFSET_DEFAULT"
+PORT_MAPPING_MANAGED_BY_SYSTEMD="no"
 
 usage() {
 	cat <<'USAGE'
@@ -177,6 +178,7 @@ write_port_map_script() {
 set -euo pipefail
 
 PORT_OFFSET="__PORT_OFFSET__"
+ACTION="${1:-apply}"
 
 PORTS=(
 	22 23 80 443 21 25 110 143 389 3306 5432 1433 1521 6379 11211 445 161
@@ -184,14 +186,28 @@ PORTS=(
 )
 
 add_rule() {
-	local proto="$1"
-	local from_port="$2"
-	local to_port="$3"
+	local chain="$1"
+	local proto="$2"
+	local from_port="$3"
+	local to_port="$4"
+	shift 4
 
-	if iptables -t nat -C PREROUTING -p "$proto" --dport "$from_port" -j REDIRECT --to-ports "$to_port" >/dev/null 2>&1; then
+	if iptables -t nat -C "$chain" -p "$proto" "$@" --dport "$from_port" -j REDIRECT --to-ports "$to_port" >/dev/null 2>&1; then
 		return
 	fi
-	iptables -t nat -A PREROUTING -p "$proto" --dport "$from_port" -j REDIRECT --to-ports "$to_port"
+	iptables -t nat -A "$chain" -p "$proto" "$@" --dport "$from_port" -j REDIRECT --to-ports "$to_port"
+}
+
+remove_rule() {
+	local chain="$1"
+	local proto="$2"
+	local from_port="$3"
+	local to_port="$4"
+	shift 4
+
+	while iptables -t nat -C "$chain" -p "$proto" "$@" --dport "$from_port" -j REDIRECT --to-ports "$to_port" >/dev/null 2>&1; do
+		iptables -t nat -D "$chain" -p "$proto" "$@" --dport "$from_port" -j REDIRECT --to-ports "$to_port"
+	done
 }
 
 for port in "${PORTS[@]}"; do
@@ -200,13 +216,77 @@ for port in "${PORTS[@]}"; do
 		echo "Mapped port out of range: $port -> $mapped" >&2
 		exit 1
 	fi
-	add_rule tcp "$port" "$mapped"
-	add_rule udp "$port" "$mapped"
+	for proto in tcp udp; do
+		case "$ACTION" in
+			apply)
+				add_rule PREROUTING "$proto" "$port" "$mapped"
+				add_rule OUTPUT "$proto" "$port" "$mapped" -m addrtype --dst-type LOCAL
+				;;
+			remove)
+				remove_rule PREROUTING "$proto" "$port" "$mapped"
+				remove_rule OUTPUT "$proto" "$port" "$mapped" -m addrtype --dst-type LOCAL
+				;;
+			*)
+				echo "Usage: $0 [apply|remove]" >&2
+				exit 1
+				;;
+		esac
+	done
 done
 SH
 	sed -i "s/__PORT_OFFSET__/${PORT_OFFSET}/" "$INSTALL_DIR/port-map.sh"
 	chmod 700 "$INSTALL_DIR/port-map.sh"
 	chown root:root "$INSTALL_DIR/port-map.sh"
+}
+
+setup_port_mapping_service() {
+	if ! command -v systemctl >/dev/null 2>&1 || ! systemctl list-unit-files >/dev/null 2>&1; then
+		return 1
+	fi
+
+	cat <<EOF > /etc/systemd/system/honeypot-port-map.service
+[Unit]
+Description=Honeypot native-port redirects
+After=network-online.target
+Wants=network-online.target
+Before=honeypot-client.service
+
+[Service]
+Type=oneshot
+ExecStart=$INSTALL_DIR/port-map.sh apply
+ExecStop=$INSTALL_DIR/port-map.sh remove
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+	systemctl daemon-reload
+	if ! systemctl enable --now honeypot-port-map.service; then
+		return 1
+	fi
+	PORT_MAPPING_MANAGED_BY_SYSTEMD="yes"
+}
+
+setup_port_mapping_cron() {
+	"$INSTALL_DIR/port-map.sh" apply
+	cat <<EOF > /etc/cron.d/honeypot-port-map
+@reboot root $INSTALL_DIR/port-map.sh apply
+EOF
+	chmod 644 /etc/cron.d/honeypot-port-map
+}
+
+disable_port_mapping() {
+	if [[ -f /etc/systemd/system/honeypot-port-map.service ]] && command -v systemctl >/dev/null 2>&1; then
+		systemctl disable --now honeypot-port-map.service || true
+		rm -f /etc/systemd/system/honeypot-port-map.service
+		systemctl daemon-reload
+	fi
+
+	if [[ -x "$INSTALL_DIR/port-map.sh" ]]; then
+		"$INSTALL_DIR/port-map.sh" remove
+	fi
+	rm -f /etc/cron.d/honeypot-port-map
 }
 
 write_config() {
@@ -288,12 +368,17 @@ setup_systemd() {
 		return 1
 	fi
 
+	local port_mapping_dependencies=""
+	if [[ "$PORT_MAPPING_MANAGED_BY_SYSTEMD" = "yes" ]]; then
+		port_mapping_dependencies=$'After=honeypot-port-map.service\nRequires=honeypot-port-map.service\n'
+	fi
+
 	cat <<EOF > /etc/systemd/system/honeypot-client.service
 [Unit]
 Description=Honeypot client
 After=network-online.target
 Wants=network-online.target
-StartLimitIntervalSec=300
+${port_mapping_dependencies}StartLimitIntervalSec=300
 StartLimitBurst=5
 
 [Service]
@@ -345,8 +430,20 @@ main() {
 	install_python_packages
 	fix_honeypots_compat
 	download_client_files
-	write_port_map_script
 	write_config
+
+	if [[ "$MAP_PORTS" = "yes" ]]; then
+		write_port_map_script
+		if ! setup_port_mapping_service; then
+			echo "systemd not available. Applying native-port redirects now and restoring them with cron." >&2
+			setup_port_mapping_cron
+		fi
+	elif [[ -f "$INSTALL_DIR/port-map.sh" || -f /etc/systemd/system/honeypot-port-map.service || -f /etc/cron.d/honeypot-port-map ]]; then
+		# Replace older one-way mapping scripts so a reinstallation can cleanly
+		# switch this host back to backup ports.
+		write_port_map_script
+		disable_port_mapping
+	fi
 
 	if ! setup_systemd; then
 		echo "systemd not available. Falling back to cron @reboot." >&2
@@ -356,10 +453,11 @@ main() {
 	echo "Honeypot client installed in $INSTALL_DIR"
 	echo "Config: $INSTALL_DIR/config.json"
 	if [[ "$MAP_PORTS" = "yes" ]]; then
-		echo "Port mapping script created: $INSTALL_DIR/port-map.sh"
-		echo "Run it manually as root when you want to apply iptables redirects."
+		echo "Native-port redirects are active."
+		echo "Mapping script: $INSTALL_DIR/port-map.sh"
 	else
-		echo "Port mapping disabled. Connect to the high ports in config.json."
+		echo "Backup ports selected. No native-port redirects were created."
+		echo "Connect to the high ports in config.json."
 	fi
 }
 

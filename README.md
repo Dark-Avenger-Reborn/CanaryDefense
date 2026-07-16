@@ -142,7 +142,7 @@ sudo bash honeypot/install.sh \
 
 Notes:
 
-- Native service ports are the default. `--map-ports` creates an iptables redirect script from the native ports to the backup high ports.
+- Native service ports are the default. `--map-ports` applies iptables redirects from the native ports to the backup high ports and restores them at boot.
 - Use `--no-map-ports` to use the backup ports directly when you already manage port mapping or cannot use the native ports.
 - The installer fetches `honeypot_client.py` from your server and configures runtime files under `/opt/honeypot`.
 

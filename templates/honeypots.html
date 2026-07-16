@@ -191,7 +191,7 @@
                     <input type="checkbox" id="use-backup-ports">
                     Use backup ports instead of native ports
                 </label>
-                <p id="port-choice-help">Native ports are selected by default. The installer prepares redirects from the native service ports to the honeypot's backup ports.</p>
+                <p id="port-choice-help">Native ports are selected by default. The installer applies and restores redirects from the native service ports to the honeypot's backup ports.</p>
                 <div><a class="btn btn-ghost" href="{{ url_for('honeypot.backup_ports') }}">Learn about backup ports</a></div>
             </div>
             <p style="margin-top: 18px;">Run this on the target host:</p>
@@ -274,7 +274,7 @@
             installCommandEl.textContent = `wget ${installDetails.serverUrl}/honeypot/install.sh -O /tmp/install.sh && sudo bash /tmp/install.sh --server-url ${installDetails.serverUrl} --honeypot-id ${installDetails.honeypotId} ${portOption}`;
             portChoiceHelpEl.textContent = useBackupPortsEl.checked
                 ? 'The honeypot will listen on backup high ports directly; no native-port redirects are created.'
-                : 'Native ports are selected by default. The installer prepares redirects from the native service ports to the honeypot\'s backup ports.';
+                : 'Native ports are selected by default. The installer applies and restores redirects from the native service ports to the honeypot\'s backup ports.';
         }
 
         function openInstallModal(serverUrl, honeypotId) {
