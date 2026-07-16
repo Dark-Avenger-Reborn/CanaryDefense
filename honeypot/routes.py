@@ -15,6 +15,29 @@ honeypot_bp = Blueprint('honeypot', __name__, url_prefix='/honeypot')
 honeypot_api_bp = Blueprint('honeypot_api', __name__, url_prefix='/api/honeypot')
 db = DatabaseCommunicator()
 
+PORT_MAPPINGS = (
+    ("FTP", 21), ("SSH", 22), ("Telnet", 23), ("SMTP", 25),
+    ("DNS", 53), ("DHCP", 67), ("HTTP", 80), ("POP3", 110),
+    ("NTP", 123), ("IMAP", 143), ("SNMP", 161), ("LDAP", 389),
+    ("SMB", 445), ("IPP", 631), ("SOCKS5", 1080), ("MSSQL", 1433),
+    ("Oracle", 1521), ("Postgres", 5432), ("VNC", 5900),
+    ("Redis", 6379), ("IRC", 6667), ("HTTP Proxy", 8080),
+    ("HTTPS Proxy", 8443), ("PJL", 9100), ("Elastic", 9200),
+    ("MySQL", 3306), ("RDP", 3389), ("SIP", 5060), ("Memcache", 11211),
+)
+
+
+@honeypot_bp.route('/backup-ports', methods=['GET'])
+def backup_ports():
+    """Explain the native-to-backup port mapping used by the installer."""
+    return render_template(
+        'backup_ports.html',
+        port_mappings=[
+            {'service': service, 'native_port': port, 'backup_port': port + 10000}
+            for service, port in sorted(PORT_MAPPINGS, key=lambda item: item[1])
+        ]
+    )
+
 
 @honeypot_bp.route('/create', methods=['POST'])
 def create_honeypot():

@@ -185,7 +185,16 @@
     <div class="modal-backdrop" id="install-modal">
         <div class="modal">
             <h3>Install command</h3>
-            <p>Run this on the target host:</p>
+            <p>Choose the ports for this deployment, then run the command on the target host.</p>
+            <div class="form-row" style="margin-top: 18px;">
+                <label class="checkbox-label" for="use-backup-ports">
+                    <input type="checkbox" id="use-backup-ports">
+                    Use backup ports instead of native ports
+                </label>
+                <p id="port-choice-help">Native ports are selected by default. The installer prepares redirects from the native service ports to the honeypot's backup ports.</p>
+                <div><a class="btn btn-ghost" href="{{ url_for('honeypot.backup_ports') }}">Learn about backup ports</a></div>
+            </div>
+            <p style="margin-top: 18px;">Run this on the target host:</p>
             <pre id="install-command"></pre>
             <div class="modal-actions">
                 <button class="btn btn-ghost" type="button" onclick="closeInstallModal()">Close</button>
@@ -250,11 +259,28 @@
         const createNotice = document.getElementById('honeypot-create-notice');
         const installModal = document.getElementById('install-modal');
         const installCommandEl = document.getElementById('install-command');
+        const useBackupPortsEl = document.getElementById('use-backup-ports');
+        const portChoiceHelpEl = document.getElementById('port-choice-help');
         const lastConfigSignatures = new Map();
         let installModalOpen = false;
+        let installDetails = null;
 
-        function openInstallModal(command) {
-            installCommandEl.textContent = command;
+        function updateInstallCommand() {
+            if (!installDetails) {
+                return;
+            }
+
+            const portOption = useBackupPortsEl.checked ? '--no-map-ports' : '--map-ports';
+            installCommandEl.textContent = `wget ${installDetails.serverUrl}/honeypot/install.sh -O /tmp/install.sh && sudo bash /tmp/install.sh --server-url ${installDetails.serverUrl} --honeypot-id ${installDetails.honeypotId} ${portOption}`;
+            portChoiceHelpEl.textContent = useBackupPortsEl.checked
+                ? 'The honeypot will listen on backup high ports directly; no native-port redirects are created.'
+                : 'Native ports are selected by default. The installer prepares redirects from the native service ports to the honeypot\'s backup ports.';
+        }
+
+        function openInstallModal(serverUrl, honeypotId) {
+            installDetails = { serverUrl, honeypotId };
+            useBackupPortsEl.checked = false;
+            updateInstallCommand();
             installModal.classList.add('active');
             installModalOpen = true;
         }
@@ -271,6 +297,8 @@
                 closeInstallModal();
             }
         });
+
+        useBackupPortsEl.addEventListener('change', updateInstallCommand);
 
         async function copyInstallCommand() {
             const copyButton = document.querySelector('#install-modal button[onclick="copyInstallCommand()"]');
@@ -324,8 +352,7 @@
                 }
 
                 const serverUrl = window.location.origin;
-                const installCommand = `wget ${serverUrl}/honeypot/install.sh -O /tmp/install.sh && sudo bash /tmp/install.sh --server-url ${serverUrl} --honeypot-id ${payload.honeypot_id}`;
-                openInstallModal(installCommand);
+                openInstallModal(serverUrl, payload.honeypot_id);
             } catch (error) {
                 if (createNotice) {
                     createNotice.textContent = 'Failed to create honeypot. Please try again.';

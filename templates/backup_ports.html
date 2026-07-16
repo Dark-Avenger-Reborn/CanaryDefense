@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup ports - {{ brand_name }}</title>
+    <script>
+        (function () {
+            try {
+                const savedTheme = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+                document.documentElement.style.backgroundColor = theme === 'dark' ? '#0f172a' : '#f7fafc';
+            } catch (error) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="page">
+    <div class="shell">
+        <div class="top-bar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <div>
+                    <h1>Backup ports</h1>
+                    <p>How {{ brand_name }} exposes honeypot services without binding them directly to native ports.</p>
+                </div>
+            </div>
+            <div class="nav">
+                <a class="nav-primary" href="{{ url_for('database.honeypots') }}">Back to honeypots</a>
+                <button id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+            </div>
+        </div>
+
+        <div class="card fade-up">
+            <div class="section-title">
+                <h2>Native ports vs. backup ports</h2>
+                <p>Honeypot services run on backup ports so they do not need to bind to privileged or commonly occupied native ports.</p>
+            </div>
+            <p style="margin-top: 16px;">When native ports are selected (the default), the installer creates an iptables redirect script from each native port to its backup port. When you select backup ports in the install dialog, no redirects are created; connect to the backup ports listed below instead. Redirect rules cover both TCP and UDP.</p>
+        </div>
+
+        <div class="card fade-up" style="margin-top: 24px;">
+            <div class="section-title">
+                <h2>Port mappings</h2>
+                <p>Each backup port is the native port plus 10,000.</p>
+            </div>
+            <div style="overflow-x: auto; margin-top: 18px;">
+                <table class="logs-table">
+                    <thead>
+                        <tr><th>Service</th><th>Native port</th><th>Backup port</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for mapping in port_mappings %}
+                        <tr>
+                            <td>{{ mapping.service }}</td>
+                            <td>{{ mapping.native_port }}</td>
+                            <td>{{ mapping.backup_port }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+</body>
+</html>
